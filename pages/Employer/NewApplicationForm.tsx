@@ -1,8 +1,10 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { LicenseApplication, ApplicationStatus, LicenseType, Associate, ApplicationWizardData } from '../../types';
 import { Button, Input, Select, Card, Badge } from '../../components/UI';
 import { ApplicationSummary } from '../../components/ApplicationSummary';
+import { analyzeApplication } from '../../services/geminiService';
 import { 
   ArrowLeft, ChevronRight, ChevronLeft, Check, AlertCircle, 
   HelpCircle, Phone, Mail, UserPlus, Trash2, Building, Calendar, Hash, Info 
@@ -39,6 +41,10 @@ const INITIAL_DATA: ApplicationWizardData = {
   scopeTransport: false,
   scopeSurveys: false,
 
+  firmLegalName: 'ASBESTOS TEST ACCOUNT FOR PREVENTION',
+  firmAddress: '4161 SHEILA STREET, SUITE 305 RICHMOND, BC, V7C5J6',
+  firmAccountNumber: '29615302',
+  firmClassificationUnit: '2418 Service clean asbestos worksite (240202)',
   firmTradeName: '',
   firmWorkersCount: 0,
   firmNopDate: '',
@@ -170,6 +176,15 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
         }
         return true;
       case 3: // Firm
+         if (!data.firmLegalName) {
+           setError("Legal name is required."); return false;
+         }
+         if (!data.firmAccountNumber) {
+           setError("Account number is required."); return false;
+         }
+         if (!data.firmAddress) {
+           setError("Mailing address is required."); return false;
+         }
          if (data.firmWorkersCount < 0) {
            setError("Worker counts cannot be negative."); return false;
          }
@@ -202,7 +217,7 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
             }
         }
         return true;
-      case 6: // Attestations / Associate History
+      case 6: // Acknowledgement
          // Check if all associates have history filled out
          for (const asc of data.associates) {
            if (!asc.history) {
@@ -210,13 +225,18 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
              return false;
            }
          }
+         // Check Acknowledgments
+         if (!data.ackOutstandingAmounts || !data.ackCompliance || !data.ackEnforcement) {
+             setError("You must acknowledge all items in the 'Final Acknowledgments' section.");
+             return false;
+         }
+         // Check License Requirements
+         if (!data.reqWorkersCert || !data.reqCompliance || !data.reqRecords || !data.reqCooperation) {
+             setError("You must agree to all items in the 'License Requirements' section.");
+             return false;
+         }
          return true;
       case 7: // Final Review
-         if (!data.ackOutstandingAmounts || !data.ackCompliance || !data.ackEnforcement ||
-             !data.reqWorkersCert || !data.reqCompliance || !data.reqRecords || !data.reqCooperation) {
-               setError("You must acknowledge all licensing criteria and requirements to proceed.");
-               return false;
-             }
          return true;
       default: return true;
     }
@@ -233,22 +253,21 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateStep(7)) return;
     setIsSubmitting(true);
 
     const submissionDate = new Date().toISOString().split('T')[0];
     const applicantFullName = `${data.contactFirstName} ${data.contactLastName}`;
 
-    // Mock submission delay
-    setTimeout(() => {
-      const newApp: LicenseApplication = {
+    // Construct the application object
+    const newApp: LicenseApplication = {
         id: `APP-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)}`,
-        companyName: "ASBESTOS TEST ACCOUNT FOR PREVENTION", // Locked to the read-only value
+        companyName: data.firmLegalName, // Use edited firm name
         applicantName: applicantFullName,
         email: data.contactEmail,
         phone: data.contactPhone,
-        address: "4161 SHEILA STREET, SUITE 305 RICHMOND, BC", // Locked to read-only value
+        address: data.firmAddress, // Use edited address
         licenseType: LicenseType.CLASS_A, // Derived from data or defaulted
         status: ApplicationStatus.SUBMITTED,
         submissionDate: submissionDate,
@@ -260,11 +279,21 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
           insuranceExpiry: '2025-01-01',
           violationDetails: data.historyNonCompliance ? "See detailed history." : undefined
         },
-        documents: [], // Attachments logic can be added back if needed
+        documents: [], 
         wizardData: data
-      };
-      onSubmit(newApp);
-    }, 1500);
+    };
+
+    try {
+        // Run AI Analysis before submitting
+        const analysis = await analyzeApplication(newApp);
+        newApp.aiAnalysis = JSON.stringify(analysis);
+    } catch (e) {
+        console.error("AI Analysis failed on submit", e);
+    }
+
+    // Submit
+    onSubmit(newApp);
+    setIsSubmitting(false);
   };
 
   // --- Render Steps ---
@@ -376,40 +405,42 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
       <div>
         <h3 className="text-xl font-bold text-slate-900">Section: Firm information</h3>
         <p className="text-sm text-slate-600 mt-2">
-          Specific profile details for your firm’s account information. Access Manage my account under the Employer Services online account if you need to update the mailing address.
+          Specific profile details for your firm’s account information. Please ensure these details are correct.
         </p>
       </div>
 
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-5">
-        <div className="grid gap-y-4 text-sm">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <span className="font-semibold text-slate-600">Account number:</span>
-            <span className="sm:col-span-2 text-slate-900 font-medium">29615302</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <span className="font-semibold text-slate-600">Legal name:</span>
-            <span className="sm:col-span-2 text-slate-900 font-medium">ASBESTOS TEST ACCOUNT FOR PREVENTION</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-center">
-            <span className="font-semibold text-slate-600">Trade name:</span>
-            <div className="sm:col-span-2">
-               <input 
-                  type="text" 
-                  value={data.firmTradeName} 
-                  onChange={(e) => updateData({ firmTradeName: e.target.value })}
-                  placeholder="(empty)"
-                  className="w-full max-w-md px-3 py-1.5 text-sm border border-slate-300 rounded focus:ring-1 focus:ring-brand-500 focus:outline-none bg-white"
-               />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input 
+                label="Account number" 
+                value={data.firmAccountNumber}
+                onChange={(e) => updateData({ firmAccountNumber: e.target.value })}
+            />
+            <Input 
+                label="Legal name" 
+                value={data.firmLegalName}
+                onChange={(e) => updateData({ firmLegalName: e.target.value })}
+            />
+            <Input 
+                label="Trade name (optional)" 
+                value={data.firmTradeName}
+                onChange={(e) => updateData({ firmTradeName: e.target.value })}
+                placeholder="(empty)"
+            />
+             <Input 
+                label="Classification unit" 
+                value={data.firmClassificationUnit}
+                onChange={(e) => updateData({ firmClassificationUnit: e.target.value })}
+            />
+            <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Mailing address</label>
+                <textarea 
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    rows={2}
+                    value={data.firmAddress}
+                    onChange={(e) => updateData({ firmAddress: e.target.value })}
+                />
             </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <span className="font-semibold text-slate-600">Classification unit:</span>
-            <span className="sm:col-span-2 text-slate-900 font-medium">2418 Service clean asbestos worksite (240202)</span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <span className="font-semibold text-slate-600">Mailing address:</span>
-            <span className="sm:col-span-2 text-slate-900 font-medium">4161 SHEILA STREET, SUITE 305 RICHMOND, BC, V7C5J6</span>
-          </div>
         </div>
       </div>
 
@@ -665,71 +696,148 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
       updateData({ associates: newAssociates });
     };
 
-    if (data.associates.length === 0) {
-      return (
-        <div className="text-center py-12">
-          <Building className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-slate-900">No Associates Declared</h3>
-          <p className="text-slate-500 max-w-sm mx-auto mt-2">
-            You did not add any associated persons or firms in the previous step. Click Continue to proceed to Acknowledgement.
-          </p>
-        </div>
-      );
-    }
-
     return (
       <div className="space-y-8 animate-fadeIn">
          <div className="mb-4">
-          <h3 className="text-lg font-medium text-slate-900">Declarations for Associated Entities</h3>
+          <h3 className="text-lg font-medium text-slate-900">Acknowledgement & Declarations</h3>
           <p className="text-sm text-slate-500 mt-1">
-            Please answer the following legal history questions for each declared associate.
+            Please complete the following declarations and acknowledgments.
           </p>
         </div>
 
-        {data.associates.map((assoc, index) => {
-          const displayName = assoc.businessName || `${assoc.firstName} ${assoc.lastName}`;
-          return (
-          <div key={assoc.id} className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
-            <h4 className="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">
-              {index + 1}. {displayName} <span className="text-slate-400 font-normal">({assoc.relationship})</span>
-            </h4>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-slate-700 w-3/4">Has this person/firm ever had a licence cancelled or refused?</span>
-                <div className="flex space-x-4">
-                  <label className="flex items-center"><input type="radio" checked={assoc.history?.cancelledOrRefused === true} onChange={() => updateHistory(assoc.id, 'cancelledOrRefused', true)} className="mr-2" /> Yes</label>
-                  <label className="flex items-center"><input type="radio" checked={assoc.history?.cancelledOrRefused === false} onChange={() => updateHistory(assoc.id, 'cancelledOrRefused', false)} className="mr-2" /> No</label>
-                </div>
-              </div>
+        {data.associates.length > 0 && (
+            <div className="space-y-6">
+                 <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-2">Declarations for Associated Entities</h4>
+                 {data.associates.map((assoc, index) => {
+                    const displayName = assoc.businessName || `${assoc.firstName} ${assoc.lastName}`;
+                    return (
+                        <div key={assoc.id} className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                            <h4 className="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-4">
+                            {index + 1}. {displayName} <span className="text-slate-400 font-normal">({assoc.relationship})</span>
+                            </h4>
+                            
+                            <div className="space-y-4">
+                            <div className="flex items-center justify-between py-2">
+                                <span className="text-sm text-slate-700 w-3/4">Has this person/firm ever had a licence cancelled or refused?</span>
+                                <div className="flex space-x-4">
+                                <label className="flex items-center"><input type="radio" checked={assoc.history?.cancelledOrRefused === true} onChange={() => updateHistory(assoc.id, 'cancelledOrRefused', true)} className="mr-2" /> Yes</label>
+                                <label className="flex items-center"><input type="radio" checked={assoc.history?.cancelledOrRefused === false} onChange={() => updateHistory(assoc.id, 'cancelledOrRefused', false)} className="mr-2" /> No</label>
+                                </div>
+                            </div>
 
-              <div className="flex items-center justify-between py-2 bg-slate-50 rounded px-2">
-                <span className="text-sm text-slate-700 w-3/4">Has any enforcement action been taken against them?</span>
-                <div className="flex space-x-4">
-                  <label className="flex items-center"><input type="radio" checked={assoc.history?.enforcementAction === true} onChange={() => updateHistory(assoc.id, 'enforcementAction', true)} className="mr-2" /> Yes</label>
-                  <label className="flex items-center"><input type="radio" checked={assoc.history?.enforcementAction === false} onChange={() => updateHistory(assoc.id, 'enforcementAction', false)} className="mr-2" /> No</label>
-                </div>
-              </div>
+                            <div className="flex items-center justify-between py-2 bg-slate-50 rounded px-2">
+                                <span className="text-sm text-slate-700 w-3/4">Has any enforcement action been taken against them?</span>
+                                <div className="flex space-x-4">
+                                <label className="flex items-center"><input type="radio" checked={assoc.history?.enforcementAction === true} onChange={() => updateHistory(assoc.id, 'enforcementAction', true)} className="mr-2" /> Yes</label>
+                                <label className="flex items-center"><input type="radio" checked={assoc.history?.enforcementAction === false} onChange={() => updateHistory(assoc.id, 'enforcementAction', false)} className="mr-2" /> No</label>
+                                </div>
+                            </div>
 
-              <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-slate-700 w-3/4">Are they involved in any criminal or civil process?</span>
-                <div className="flex space-x-4">
-                  <label className="flex items-center"><input type="radio" checked={assoc.history?.criminalCivilProcess === true} onChange={() => updateHistory(assoc.id, 'criminalCivilProcess', true)} className="mr-2" /> Yes</label>
-                  <label className="flex items-center"><input type="radio" checked={assoc.history?.criminalCivilProcess === false} onChange={() => updateHistory(assoc.id, 'criminalCivilProcess', false)} className="mr-2" /> No</label>
-                </div>
-              </div>
+                            <div className="flex items-center justify-between py-2">
+                                <span className="text-sm text-slate-700 w-3/4">Are they involved in any criminal or civil process?</span>
+                                <div className="flex space-x-4">
+                                <label className="flex items-center"><input type="radio" checked={assoc.history?.criminalCivilProcess === true} onChange={() => updateHistory(assoc.id, 'criminalCivilProcess', true)} className="mr-2" /> Yes</label>
+                                <label className="flex items-center"><input type="radio" checked={assoc.history?.criminalCivilProcess === false} onChange={() => updateHistory(assoc.id, 'criminalCivilProcess', false)} className="mr-2" /> No</label>
+                                </div>
+                            </div>
 
-              <div className="flex items-center justify-between py-2 bg-slate-50 rounded px-2">
-                <span className="text-sm text-slate-700 w-3/4">Was the enforcement action related to asbestos work?</span>
-                <div className="flex space-x-4">
-                   <label className="flex items-center"><input type="radio" checked={assoc.history?.asbestosEnforcement === true} onChange={() => updateHistory(assoc.id, 'asbestosEnforcement', true)} className="mr-2" /> Yes</label>
-                  <label className="flex items-center"><input type="radio" checked={assoc.history?.asbestosEnforcement === false} onChange={() => updateHistory(assoc.id, 'asbestosEnforcement', false)} className="mr-2" /> No</label>
-                </div>
-              </div>
+                            <div className="flex items-center justify-between py-2 bg-slate-50 rounded px-2">
+                                <span className="text-sm text-slate-700 w-3/4">Was the enforcement action related to asbestos work?</span>
+                                <div className="flex space-x-4">
+                                <label className="flex items-center"><input type="radio" checked={assoc.history?.asbestosEnforcement === true} onChange={() => updateHistory(assoc.id, 'asbestosEnforcement', true)} className="mr-2" /> Yes</label>
+                                <label className="flex items-center"><input type="radio" checked={assoc.history?.asbestosEnforcement === false} onChange={() => updateHistory(assoc.id, 'asbestosEnforcement', false)} className="mr-2" /> No</label>
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+                    );
+                })}
             </div>
-          </div>
-          );
-        })}
+        )}
+
+        <section>
+            <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4">Final Acknowledgments</h4>
+            <div className="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">
+                <label className="flex items-start p-4 hover:bg-slate-50 cursor-pointer">
+                    <input 
+                    type="checkbox" 
+                    checked={data.ackOutstandingAmounts}
+                    onChange={(e) => updateData({ ackOutstandingAmounts: e.target.checked })}
+                    className="mt-1 h-5 w-5 text-brand-600 rounded focus:ring-brand-500" 
+                    />
+                    <div className="ml-3">
+                    <span className="block text-sm font-medium text-slate-900">Outstanding Amounts</span>
+                    <span className="block text-sm text-slate-500">I acknowledge that outstanding amounts owing to WorkSafeBC may affect the outcome of this application.</span>
+                    </div>
+                </label>
+                <label className="flex items-start p-4 hover:bg-slate-50 cursor-pointer">
+                    <input 
+                    type="checkbox" 
+                    checked={data.ackCompliance}
+                    onChange={(e) => updateData({ ackCompliance: e.target.checked })}
+                    className="mt-1 h-5 w-5 text-brand-600 rounded focus:ring-brand-500" 
+                    />
+                    <div className="ml-3">
+                    <span className="block text-sm font-medium text-slate-900">Act & OHS Regulation</span>
+                    <span className="block text-sm text-slate-500">I certify that our firm is in compliance with the Act and OHS Regulation.</span>
+                    </div>
+                </label>
+                <label className="flex items-start p-4 hover:bg-slate-50 cursor-pointer">
+                    <input 
+                    type="checkbox" 
+                    checked={data.ackEnforcement}
+                    onChange={(e) => updateData({ ackEnforcement: e.target.checked })}
+                    className="mt-1 h-5 w-5 text-brand-600 rounded focus:ring-brand-500" 
+                    />
+                    <div className="ml-3">
+                    <span className="block text-sm font-medium text-slate-900">Enforcement Activities</span>
+                    <span className="block text-sm text-slate-500">I understand that past enforcement activities (penalties, stop-work orders, injunctions, etc.) are considered during review.</span>
+                    </div>
+                </label>
+            </div>
+        </section>
+
+        <section>
+            <h4 className="font-bold text-slate-800 border-b border-slate-200 pb-2 mb-4">License Requirements</h4>
+            <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-4">
+                <label className="flex items-center cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        checked={data.reqWorkersCert} 
+                        onChange={(e) => updateData({ reqWorkersCert: e.target.checked })}
+                        className="h-4 w-4 text-brand-600 rounded focus:ring-brand-500" 
+                    />
+                    <span className="ml-3 text-sm text-slate-700">Workers must have valid WorkSafeBC asbestos certificate.</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        checked={data.reqCompliance} 
+                        onChange={(e) => updateData({ reqCompliance: e.target.checked })}
+                        className="h-4 w-4 text-brand-600 rounded focus:ring-brand-500" 
+                    />
+                    <span className="ml-3 text-sm text-slate-700">Ongoing compliance with Act and OHS Regulation.</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        checked={data.reqRecords} 
+                        onChange={(e) => updateData({ reqRecords: e.target.checked })}
+                        className="h-4 w-4 text-brand-600 rounded focus:ring-brand-500" 
+                    />
+                    <span className="ml-3 text-sm text-slate-700">Submission of records/documents as required by the Board.</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        checked={data.reqCooperation} 
+                        onChange={(e) => updateData({ reqCooperation: e.target.checked })}
+                        className="h-4 w-4 text-brand-600 rounded focus:ring-brand-500" 
+                    />
+                    <span className="ml-3 text-sm text-slate-700">Full cooperation with inspectors.</span>
+                </label>
+            </div>
+        </section>
       </div>
     );
   };

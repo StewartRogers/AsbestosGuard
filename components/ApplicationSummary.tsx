@@ -1,3 +1,5 @@
+
+
 import React from 'react';
 import { ApplicationWizardData } from '../types';
 import { Button } from './UI';
@@ -69,7 +71,11 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({ data, on
                     {onEditStep && <Button variant="outline" className="text-xs h-8" onClick={() => onEditStep(3)}>Edit</Button>}
                 </div>
                 <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                    <div><dt className="text-slate-500">Legal Name</dt><dd className="font-medium text-slate-900">{data.firmLegalName}</dd></div>
+                    <div><dt className="text-slate-500">Account Number</dt><dd className="font-medium text-slate-900">{data.firmAccountNumber}</dd></div>
+                    <div><dt className="text-slate-500">Classification Unit</dt><dd className="font-medium text-slate-900">{data.firmClassificationUnit}</dd></div>
                     <div><dt className="text-slate-500">Trade Name</dt><dd className="font-medium text-slate-900">{data.firmTradeName || 'N/A'}</dd></div>
+                    <div className="sm:col-span-3"><dt className="text-slate-500">Mailing Address</dt><dd className="font-medium text-slate-900">{data.firmAddress}</dd></div>
                     <div><dt className="text-slate-500">Recent NOP</dt><dd className="font-medium text-slate-900">{data.firmNopDate || data.firmNopNumber || 'None'}</dd></div>
                     <div><dt className="text-slate-500">Total Workers</dt><dd className="font-medium text-slate-900">{data.firmWorkersCount}</dd></div>
                     <div><dt className="text-slate-500">Cert. Level 1-4</dt><dd className="font-medium text-slate-900">{data.firmCertLevel1to4}</dd></div>
@@ -113,16 +119,16 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({ data, on
         </div>
       </section>
 
-      {/* Acknowledgment Section */}
+      {/* Acknowledgment Section (Read-Only) */}
       <section>
         <h3 className="text-xl font-bold text-slate-900 mb-4">Final Acknowledgments</h3>
         <div className="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100">
-          <label className="flex items-start p-4 hover:bg-slate-50">
+          <label className="flex items-start p-4 bg-slate-50 opacity-80 cursor-not-allowed">
             <input 
                type="checkbox" 
                checked={data.ackOutstandingAmounts}
-               readOnly={true}
-               disabled={isReadOnly}
+               readOnly
+               disabled
                className="mt-1 h-5 w-5 text-brand-600 rounded focus:ring-brand-500 disabled:opacity-70" 
             />
             <div className="ml-3">
@@ -130,12 +136,12 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({ data, on
               <span className="block text-sm text-slate-500">I acknowledge that outstanding amounts owing to WorkSafeBC may affect the outcome of this application.</span>
             </div>
           </label>
-          <label className="flex items-start p-4 hover:bg-slate-50">
+          <label className="flex items-start p-4 bg-slate-50 opacity-80 cursor-not-allowed">
             <input 
                type="checkbox" 
                checked={data.ackCompliance}
-               readOnly={true}
-               disabled={isReadOnly}
+               readOnly
+               disabled
                className="mt-1 h-5 w-5 text-brand-600 rounded focus:ring-brand-500 disabled:opacity-70" 
             />
             <div className="ml-3">
@@ -143,12 +149,12 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({ data, on
               <span className="block text-sm text-slate-500">I certify that our firm is in compliance with the Act and OHS Regulation.</span>
             </div>
           </label>
-          <label className="flex items-start p-4 hover:bg-slate-50">
+          <label className="flex items-start p-4 bg-slate-50 opacity-80 cursor-not-allowed">
             <input 
                type="checkbox" 
                checked={data.ackEnforcement}
-               readOnly={true}
-               disabled={isReadOnly}
+               readOnly
+               disabled
                className="mt-1 h-5 w-5 text-brand-600 rounded focus:ring-brand-500 disabled:opacity-70" 
             />
             <div className="ml-3">
@@ -159,24 +165,24 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({ data, on
         </div>
       </section>
 
-      {/* License Requirements Section */}
+      {/* License Requirements Section (Read-Only) */}
       <section>
         <h3 className="text-xl font-bold text-slate-900 mb-4">License Requirements</h3>
-        <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-4">
-          <label className="flex items-center">
-            <input type="checkbox" checked={data.reqWorkersCert} readOnly disabled={isReadOnly} className="h-4 w-4 text-brand-600 rounded disabled:opacity-70" />
+        <div className="bg-slate-50 rounded-lg border border-slate-200 p-4 space-y-4 opacity-80">
+          <label className="flex items-center cursor-not-allowed">
+            <input type="checkbox" checked={data.reqWorkersCert} readOnly disabled className="h-4 w-4 text-brand-600 rounded disabled:opacity-70" />
             <span className="ml-3 text-sm text-slate-700">Workers must have valid WorkSafeBC asbestos certificate.</span>
           </label>
-          <label className="flex items-center">
-            <input type="checkbox" checked={data.reqCompliance} readOnly disabled={isReadOnly} className="h-4 w-4 text-brand-600 rounded disabled:opacity-70" />
+          <label className="flex items-center cursor-not-allowed">
+            <input type="checkbox" checked={data.reqCompliance} readOnly disabled className="h-4 w-4 text-brand-600 rounded disabled:opacity-70" />
             <span className="ml-3 text-sm text-slate-700">Ongoing compliance with Act and OHS Regulation.</span>
           </label>
-          <label className="flex items-center">
-            <input type="checkbox" checked={data.reqRecords} readOnly disabled={isReadOnly} className="h-4 w-4 text-brand-600 rounded disabled:opacity-70" />
+          <label className="flex items-center cursor-not-allowed">
+            <input type="checkbox" checked={data.reqRecords} readOnly disabled className="h-4 w-4 text-brand-600 rounded disabled:opacity-70" />
             <span className="ml-3 text-sm text-slate-700">Submission of records/documents as required by the Board.</span>
           </label>
-          <label className="flex items-center">
-            <input type="checkbox" checked={data.reqCooperation} readOnly disabled={isReadOnly} className="h-4 w-4 text-brand-600 rounded disabled:opacity-70" />
+          <label className="flex items-center cursor-not-allowed">
+            <input type="checkbox" checked={data.reqCooperation} readOnly disabled className="h-4 w-4 text-brand-600 rounded disabled:opacity-70" />
             <span className="ml-3 text-sm text-slate-700">Full cooperation with inspectors.</span>
           </label>
         </div>

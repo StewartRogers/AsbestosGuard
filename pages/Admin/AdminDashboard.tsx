@@ -1,17 +1,61 @@
-import React from 'react';
-import { LicenseApplication, ApplicationStatus } from '../../types';
-import { Card, Button, Badge } from '../../components/UI';
-import { Search, Filter, AlertTriangle } from 'lucide-react';
+
+import React, { useRef } from 'react';
+import { LicenseApplication, ApplicationStatus, EmployerFactSheet } from '../../types';
+import { Button, Badge } from '../../components/UI';
+import { Search, Filter, Download, Upload, Database } from 'lucide-react';
 
 interface AdminDashboardProps {
   applications: LicenseApplication[];
+  factSheets: EmployerFactSheet[];
   onReviewClick: (id: string) => void;
   onLogout: () => void;
+  onDataImport: (data: { applications: LicenseApplication[], factSheets: EmployerFactSheet[] }) => void;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ applications, onReviewClick, onLogout }) => {
-  const pendingApps = applications.filter(a => a.status === ApplicationStatus.SUBMITTED || a.status === ApplicationStatus.UNDER_REVIEW);
-  
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ applications, factSheets, onReviewClick, onLogout, onDataImport }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = () => {
+    const dataStr = JSON.stringify({ applications, factSheets }, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `asbestos_db_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImportClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const json = JSON.parse(e.target?.result as string);
+          if (json.applications && Array.isArray(json.applications)) {
+             onDataImport(json);
+          } else {
+             alert("Invalid file format. JSON must contain an 'applications' array.");
+          }
+        } catch (error) {
+          console.error("Error parsing JSON:", error);
+          alert("Failed to parse the file. Please ensure it is a valid JSON backup.");
+        }
+      };
+      reader.readAsText(file);
+    }
+    // Reset input so same file can be selected again if needed
+    if (event.target) event.target.value = '';
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex justify-between items-center mb-8">
@@ -19,7 +63,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ applications, onReviewC
           <h1 className="text-3xl font-bold text-slate-900">Admin Dashboard</h1>
           <p className="text-slate-600 mt-1">Review and manage asbestos license applications.</p>
         </div>
-        <Button variant="outline" onClick={onLogout}>Sign Out</Button>
+        <div className="flex gap-2">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              className="hidden" 
+              accept=".json"
+            />
+            <Button variant="secondary" onClick={handleExport} title="Download Backup">
+                <Download className="w-4 h-4 mr-2" />
+                Export DB
+            </Button>
+            <Button variant="secondary" onClick={handleImportClick} title="Restore Backup">
+                <Upload className="w-4 h-4 mr-2" />
+                Import DB
+            </Button>
+            <div className="w-px bg-slate-300 mx-2"></div>
+            <Button variant="outline" onClick={onLogout}>Sign Out</Button>
+        </div>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4 mb-6">

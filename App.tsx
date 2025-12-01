@@ -1,6 +1,6 @@
 
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ViewState, LicenseApplication, ApplicationStatus, LicenseType, ApplicationWizardData, EmployerFactSheet } from './types';
 import LandingPage from './pages/Landing';
 import EmployerDashboard from './pages/Employer/EmployerDashboard';
@@ -26,6 +26,10 @@ const DEFAULT_MOCK_WIZARD_DATA: ApplicationWizardData = {
   scopeServiceOthers: true,
   scopeTransport: false,
   scopeSurveys: false,
+  firmLegalName: 'ASBESTOS TEST ACCOUNT FOR PREVENTION',
+  firmAddress: '4161 SHEILA STREET, SUITE 305 RICHMOND, BC',
+  firmAccountNumber: '29615302',
+  firmClassificationUnit: '2418 Service clean asbestos worksite (240202)',
   firmTradeName: 'Acme Removal',
   firmWorkersCount: 12,
   firmNopDate: '2023-01-01',
@@ -138,9 +142,28 @@ const INITIAL_FACT_SHEETS: EmployerFactSheet[] = [
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewState>('LANDING');
-  const [applications, setApplications] = useState<LicenseApplication[]>(INITIAL_DATA);
-  const [factSheets, setFactSheets] = useState<EmployerFactSheet[]>(INITIAL_FACT_SHEETS);
+  
+  // Initialize from localStorage or fallback to default mock data
+  const [applications, setApplications] = useState<LicenseApplication[]>(() => {
+    const saved = localStorage.getItem('asbestos_app_data');
+    return saved ? JSON.parse(saved) : INITIAL_DATA;
+  });
+
+  const [factSheets, setFactSheets] = useState<EmployerFactSheet[]>(() => {
+    const saved = localStorage.getItem('asbestos_fact_sheets');
+    return saved ? JSON.parse(saved) : INITIAL_FACT_SHEETS;
+  });
+
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
+
+  // Persist data whenever it changes
+  useEffect(() => {
+    localStorage.setItem('asbestos_app_data', JSON.stringify(applications));
+  }, [applications]);
+
+  useEffect(() => {
+    localStorage.setItem('asbestos_fact_sheets', JSON.stringify(factSheets));
+  }, [factSheets]);
 
   const handleNavigate = (view: ViewState) => {
     setCurrentView(view);
@@ -179,6 +202,12 @@ export default function App() {
     handleNavigate('ADMIN_FACT_SHEETS');
   };
 
+  const handleDataImport = (data: { applications: LicenseApplication[], factSheets: EmployerFactSheet[] }) => {
+    if (data.applications) setApplications(data.applications);
+    if (data.factSheets) setFactSheets(data.factSheets);
+    alert('Database successfully restored from file.');
+  };
+
   const renderContent = () => {
     switch (currentView) {
       case 'LANDING':
@@ -204,15 +233,18 @@ export default function App() {
         />;
       case 'ADMIN_DASHBOARD':
         return <AdminDashboard 
-          applications={applications} 
+          applications={applications}
+          factSheets={factSheets}
           onReviewClick={handleSelectAppForReview}
           onLogout={() => handleNavigate('LANDING')}
+          onDataImport={handleDataImport}
         />;
       case 'ADMIN_REVIEW':
         const appToReview = applications.find(a => a.id === selectedAppId);
         if (!appToReview) return <div>Application not found</div>;
         return <ApplicationReview 
           application={appToReview} 
+          factSheets={factSheets}
           onUpdate={handleUpdateApplication}
           onBack={() => handleNavigate('ADMIN_DASHBOARD')}
         />;

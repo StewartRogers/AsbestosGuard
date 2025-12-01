@@ -65,6 +65,10 @@ export interface ApplicationWizardData {
   scopeSurveys: boolean;
 
   // Step 3: Firm
+  firmLegalName: string;
+  firmAddress: string;
+  firmAccountNumber: string;
+  firmClassificationUnit: string;
   firmTradeName: string;
   firmWorkersCount: number;
   firmNopDate: string;
@@ -141,6 +145,8 @@ export type ViewState =
 export interface AIAnalysisResult {
   riskScore: 'LOW' | 'MEDIUM' | 'HIGH';
   summary: string;
+  webPresenceSummary: string; // New field for search-based summary
   concerns: string[];
   recommendation: string;
+  sources?: { title: string; uri: string }[]; // New field for grounding sources
 }
