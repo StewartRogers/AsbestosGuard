@@ -20,8 +20,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ applications, factSheet
     const blob = new Blob([dataStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
+    
+    // Create timestamp YYYY-MM-DD_HH-mm-ss for unique filename
+    const now = new Date();
+    const timestamp = now.toISOString().replace(/T/, '_').replace(/:/g, '-').split('.')[0];
+    
     link.href = url;
-    link.download = `asbestos_db_backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.download = `asbestos_db_backup_${timestamp}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
