@@ -145,8 +145,13 @@ export type ViewState =
 export interface AIAnalysisResult {
   riskScore: 'LOW' | 'MEDIUM' | 'HIGH';
   summary: string;
-  webPresenceSummary: string; // New field for search-based summary
+  factSheetSummary: string; // New field for internal data comparison summary
+  webPresenceSummary: string;
   concerns: string[];
   recommendation: string;
-  sources?: { title: string; uri: string }[]; // New field for grounding sources
+  sources?: { title: string; uri: string }[];
+  debug?: {
+    prompt: string;
+    rawResponse: string;
+  };
 }

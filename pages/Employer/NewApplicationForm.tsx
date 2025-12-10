@@ -1,7 +1,6 @@
 
-
 import React, { useState, useEffect } from 'react';
-import { LicenseApplication, ApplicationStatus, LicenseType, Associate, ApplicationWizardData } from '../../types';
+import { LicenseApplication, ApplicationStatus, LicenseType, Associate, ApplicationWizardData, EmployerFactSheet } from '../../types';
 import { Button, Input, Select, Card, Badge } from '../../components/UI';
 import { ApplicationSummary } from '../../components/ApplicationSummary';
 import { analyzeApplication } from '../../services/geminiService';
@@ -13,6 +12,7 @@ import {
 interface NewApplicationFormProps {
   onSubmit: (app: LicenseApplication) => void;
   onCancel: () => void;
+  factSheets: EmployerFactSheet[]; // Add prop to access fact sheets for analysis
 }
 
 const STEPS = [
@@ -136,7 +136,7 @@ const RadioGroup = ({
   </div>
 );
 
-const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCancel }) => {
+const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCancel, factSheets }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [data, setData] = useState<ApplicationWizardData>(INITIAL_DATA);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -284,8 +284,14 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
     };
 
     try {
+        // Attempt to find matching Fact Sheet for Analysis Context
+        const matchedFactSheet = factSheets.find(
+          fs => fs.employerId === data.firmAccountNumber || 
+                fs.employerLegalName.toLowerCase() === data.firmLegalName.toLowerCase()
+        );
+
         // Run AI Analysis before submitting
-        const analysis = await analyzeApplication(newApp);
+        const analysis = await analyzeApplication(newApp, matchedFactSheet);
         newApp.aiAnalysis = JSON.stringify(analysis);
     } catch (e) {
         console.error("AI Analysis failed on submit", e);

@@ -1,10 +1,11 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { LicenseApplication, ApplicationStatus, AIAnalysisResult, EmployerFactSheet } from '../../types';
 import { Button, Card, Badge } from '../../components/UI';
 import { ApplicationSummary } from '../../components/ApplicationSummary';
 import { analyzeApplication } from '../../services/geminiService';
-import { ArrowLeft, BrainCircuit, CheckCircle, XCircle, FileText, AlertTriangle, MessageSquare, Building2, TrendingUp, AlertOctagon, Globe, ExternalLink } from 'lucide-react';
+import { ArrowLeft, BrainCircuit, CheckCircle, XCircle, FileText, AlertTriangle, MessageSquare, Building2, TrendingUp, AlertOctagon, Globe, ExternalLink, Database, Terminal } from 'lucide-react';
 
 interface ApplicationReviewProps {
   application: LicenseApplication;
@@ -17,10 +18,12 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null);
   const [adminNotes, setAdminNotes] = useState(application.adminNotes || '');
+  const [showDebug, setShowDebug] = useState(false);
 
-  // Attempt to link application to a Fact Sheet by Company Name
+  // Attempt to link application to a Fact Sheet by Account Number (Preferred) or Company Name
   const matchedFactSheet = factSheets.find(
-    fs => fs.employerLegalName.toLowerCase() === application.companyName.toLowerCase() || 
+    fs => (application.wizardData?.firmAccountNumber && fs.employerId === application.wizardData.firmAccountNumber) ||
+          fs.employerLegalName.toLowerCase() === application.companyName.toLowerCase() || 
           (application.wizardData?.firmTradeName && fs.employerTradeName.toLowerCase() === application.wizardData.firmTradeName.toLowerCase())
   );
 
@@ -39,7 +42,8 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
   const handleRunAI = async () => {
     try {
       setIsAnalyzing(true);
-      const result = await analyzeApplication(application);
+      // Pass matched fact sheet to the analysis service
+      const result = await analyzeApplication(application, matchedFactSheet);
       setAnalysisResult(result);
     } catch (e: any) {
       console.error(e);
@@ -257,21 +261,31 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                     </span>
                   </div>
                   
-                  <div className="grid md:grid-cols-2 gap-6">
-                      {/* Regulatory Summary */}
-                      <div>
-                        <span className="text-xs uppercase text-slate-500 font-bold tracking-wider flex items-center mb-2">
-                            <FileText className="w-3 h-3 mr-1" /> Regulatory Summary
-                        </span>
-                        <p className="text-sm text-slate-300 leading-relaxed bg-slate-800/30 p-3 rounded border border-slate-700/50">
+                  {/* High Level Regulatory Summary */}
+                   <div>
+                    <span className="text-xs uppercase text-slate-500 font-bold tracking-wider flex items-center mb-2">
+                        <FileText className="w-3 h-3 mr-1" /> Regulatory Summary
+                    </span>
+                    <p className="text-sm text-slate-300 leading-relaxed bg-slate-800/30 p-3 rounded border border-slate-700/50">
                         {analysisResult.summary}
+                    </p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                      {/* Employer Fact Sheet Summary */}
+                      <div>
+                        <span className="text-xs uppercase text-blue-400 font-bold tracking-wider flex items-center mb-2">
+                            <Database className="w-3 h-3 mr-1" /> Internal Record Check
+                        </span>
+                        <p className="text-sm text-slate-300 leading-relaxed bg-slate-800/30 p-3 rounded border border-slate-700/50 h-full">
+                            {analysisResult.factSheetSummary || "No fact sheet comparison available."}
                         </p>
                       </div>
 
-                      {/* Web Presence */}
+                      {/* Web Presence Summary */}
                       <div>
                         <span className="text-xs uppercase text-brand-400 font-bold tracking-wider flex items-center mb-2">
-                            <Globe className="w-3 h-3 mr-1" /> Web Presence
+                            <Globe className="w-3 h-3 mr-1" /> Public Web Profile
                         </span>
                         <div className="bg-slate-800/30 p-3 rounded border border-slate-700/50 h-full">
                             <p className="text-sm text-slate-300 leading-relaxed mb-3">
@@ -317,14 +331,41 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                     <p className="text-base text-white font-medium">{analysisResult.recommendation}</p>
                   </div>
                   
-                  <div className="text-right">
+                  <div className="text-right flex justify-end items-center gap-4">
+                     {analysisResult.debug && (
+                        <button 
+                            onClick={() => setShowDebug(!showDebug)}
+                            className="text-xs text-brand-400 hover:text-brand-300 underline transition-colors flex items-center"
+                        >
+                            <Terminal className="w-3 h-3 mr-1" />
+                            {showDebug ? 'Hide' : 'Show'} AI Conversation
+                        </button>
+                    )}
                     <button 
-                        onClick={() => setAnalysisResult(null)}
+                        onClick={() => {
+                            setAnalysisResult(null);
+                            setShowDebug(false);
+                        }}
                         className="text-xs text-slate-500 hover:text-white underline transition-colors"
                     >
                         Reset Analysis
                     </button>
                   </div>
+
+                  {/* Debug View */}
+                  {showDebug && analysisResult.debug && (
+                    <div className="mt-4 p-4 bg-black rounded border border-slate-700 font-mono text-[11px] text-slate-300 overflow-x-auto shadow-inner animate-fadeIn">
+                        <div className="mb-6">
+                            <strong className="text-green-400 block mb-2 border-b border-slate-800 pb-1">PROMPT SENT TO GEMINI:</strong>
+                            <pre className="whitespace-pre-wrap">{analysisResult.debug.prompt}</pre>
+                        </div>
+                        <div>
+                            <strong className="text-brand-400 block mb-2 border-b border-slate-800 pb-1">RAW RESPONSE FROM GEMINI:</strong>
+                            <pre className="whitespace-pre-wrap">{analysisResult.debug.rawResponse}</pre>
+                        </div>
+                    </div>
+                  )}
+
                 </div>
               ) : (
                 <div className="text-center py-6 text-slate-400 text-sm">

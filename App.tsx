@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { ViewState, LicenseApplication, ApplicationStatus, LicenseType, ApplicationWizardData, EmployerFactSheet } from './types';
 import LandingPage from './pages/Landing';
@@ -223,6 +222,7 @@ export default function App() {
         return <NewApplicationForm 
           onSubmit={handleCreateApplication} 
           onCancel={() => handleNavigate('EMPLOYER_DASHBOARD')}
+          factSheets={factSheets}
         />;
       case 'EMPLOYER_APP_DETAIL':
         const employerApp = applications.find(a => a.id === selectedAppId);
