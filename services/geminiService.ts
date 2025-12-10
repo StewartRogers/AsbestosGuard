@@ -6,9 +6,79 @@ export const analyzeApplication = async (
   application: LicenseApplication, 
   factSheet?: EmployerFactSheet
 ): Promise<AIAnalysisResult> => {
-  const apiKey = process.env.API_KEY;
+  // Support multiple runtime environments:
+  // - Node/server: `process.env.API_KEY`
+  // - Vite/browser dev: `import.meta.env.VITE_API_KEY` (use for local dev only)
+  const nodeKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
 
-  if (!apiKey) {
+  // Safely attempt to read Vite's `import.meta.env.VITE_API_KEY`.
+  // Avoid using `typeof import` which is a syntax error for the bundler.
+  let viteKey: string | undefined = undefined;
+  try {
+    viteKey = (import.meta as any)?.env?.VITE_API_KEY as string | undefined;
+  } catch (e) {
+    viteKey = undefined;
+  }
+
+  const apiKey = nodeKey || viteKey;
+  // If no server or Vite key, allow a localStorage fallback for quick local testing
+  // (useful when you don't want to restart the dev server). This is INSECURE
+  // and intended only for local testing — do NOT use in production.
+  let localStorageKey: string | null = null;
+  if (!apiKey && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      // Support either `VITE_API_KEY` or a more generic `GEMINI_API_KEY` stored locally
+      localStorageKey = window.localStorage.getItem('VITE_API_KEY') || window.localStorage.getItem('GEMINI_API_KEY');
+    } catch (e) {
+      localStorageKey = null;
+    }
+  }
+
+  const resolvedKey = nodeKey || viteKey || (localStorageKey ?? undefined);
+
+  // Debug: indicate which env source (if any) supplied the key.
+  // Mask actual values — only show presence to avoid leaking secrets in logs.
+  try {
+    console.debug('geminiService: key presence', {
+      hasNodeKey: !!nodeKey,
+      hasViteKey: !!viteKey,
+      hasLocalStorageKey: !!localStorageKey,
+      resolvedFrom: nodeKey ? 'node' : viteKey ? 'vite' : localStorageKey ? 'localStorage' : 'none'
+    });
+  } catch (e) {
+    // ignore logging errors
+  }
+
+  // Prefer server-side key (nodeKey). If running in the browser without a node key,
+  // call the dev server proxy endpoint (`/__api/gemini/analyze`) which will perform
+  // the model call server-side using the API key configured for Vite. This keeps
+  // the key secret and avoids exposing it to the client.
+  if (!nodeKey) {
+    if (typeof window !== 'undefined') {
+      try {
+        const res = await fetch('/__api/gemini/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ application, factSheet })
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          // If the proxy returned an error structure, surface it as a friendly fallback
+          if (json && json.riskScore) return json as AIAnalysisResult;
+          if (json && json.error) {
+            console.error('Gemini proxy error:', json.error);
+          }
+        } else {
+          console.error('Gemini proxy responded with status', res.status);
+        }
+      } catch (e) {
+        console.error('Failed to call Gemini proxy:', e);
+      }
+    }
+
+    // If we reach here, either there is no nodeKey and proxy call failed,
+    // or we're in a non-browser environment with no key. Return graceful fallback.
     return {
       riskScore: 'LOW',
       summary: "AI Analysis unavailable. API Key is missing in the environment configuration.",
@@ -84,10 +154,12 @@ export const analyzeApplication = async (
     const ai = new GoogleGenAI({ apiKey });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-2.5-flash-lite",
       contents: prompt,
       config: {
         tools: [{ googleSearch: {} }],
+        temperature: 0.7, // optional: control creativity
+        maxOutputTokens: 1024, // optional: set max response length
       }
     });
 
