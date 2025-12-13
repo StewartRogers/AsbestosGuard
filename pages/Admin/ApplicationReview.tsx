@@ -20,12 +20,17 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
   const [adminNotes, setAdminNotes] = useState(application.adminNotes || '');
   const [showDebug, setShowDebug] = useState(false);
 
-  // Attempt to link application to a Fact Sheet by Account Number (Preferred) or Company Name
+  // Attempt to link application to a Fact Sheet by Account Number only
   const matchedFactSheet = factSheets.find(
-    fs => (application.wizardData?.firmAccountNumber && fs.employerId === application.wizardData.firmAccountNumber) ||
-          fs.employerLegalName.toLowerCase() === application.companyName.toLowerCase() || 
-          (application.wizardData?.firmTradeName && fs.employerTradeName.toLowerCase() === application.wizardData.firmTradeName.toLowerCase())
+    fs => application.wizardData?.firmAccountNumber && fs.employerId === application.wizardData.firmAccountNumber
   );
+
+  // Debug: Log factSheets and matching details
+  console.log('ApplicationReview: factSheets count:', factSheets.length);
+  console.log('ApplicationReview: application.companyName:', application.companyName);
+  console.log('ApplicationReview: application.wizardData?.firmAccountNumber:', application.wizardData?.firmAccountNumber);
+  console.log('ApplicationReview: application.wizardData?.firmTradeName:', application.wizardData?.firmTradeName);
+  console.log('ApplicationReview: matchedFactSheet:', matchedFactSheet ? 'Found' : 'Not Found', matchedFactSheet);
 
   // Parse existing analysis if available on load
   useEffect(() => {

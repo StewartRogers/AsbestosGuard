@@ -96,6 +96,15 @@ export const analyzeApplication = async (
     ? JSON.stringify(factSheet, null, 2)
     : "NO MATCHING EMPLOYER FACT SHEET FOUND IN INTERNAL DATABASE.";
 
+  // Debug: Log the factSheet and context sent to AI
+  console.log('geminiService: factSheet provided:', !!factSheet);
+  if (factSheet) {
+    console.log('geminiService: factSheet.employerId:', factSheet.employerId);
+    console.log('geminiService: factSheet.employerLegalName:', factSheet.employerLegalName);
+    console.log('geminiService: factSheet.employerTradeName:', factSheet.employerTradeName);
+  }
+  console.log('geminiService: factSheetContext preview:', factSheetContext.substring(0, 200) + '...');
+
   const prompt = `
     You are an expert Regulatory Risk Analysis Engine for WorkSafeBC (Asbestos Licensing).
     

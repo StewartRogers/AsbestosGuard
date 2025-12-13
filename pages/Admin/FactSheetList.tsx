@@ -9,9 +9,10 @@ interface FactSheetListProps {
   factSheets: EmployerFactSheet[];
   onNewClick: () => void;
   onBack: () => void;
+  onDelete?: (id: string) => void; // Add optional delete handler
 }
 
-const FactSheetList: React.FC<FactSheetListProps> = ({ factSheets, onNewClick, onBack }) => {
+const FactSheetList: React.FC<FactSheetListProps> = ({ factSheets, onNewClick, onBack, onDelete }) => {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex justify-between items-center mb-8">
@@ -78,11 +79,24 @@ const FactSheetList: React.FC<FactSheetListProps> = ({ factSheets, onNewClick, o
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <Button 
                                 variant="outline" 
-                                className="text-xs px-2 py-1 h-auto"
+                                className="text-xs px-2 py-1 h-auto mr-2"
                                 onClick={() => alert(`Viewing details for ${sheet.employerLegalName}`)}
                                 >
                                 View
                                 </Button>
+                                {onDelete && (
+                                    <Button 
+                                        variant="danger" 
+                                        className="text-xs px-2 py-1 h-auto"
+                                        onClick={() => {
+                                            if (window.confirm(`Delete Fact Sheet for ${sheet.employerLegalName}?`)) {
+                                                onDelete(sheet.id);
+                                            }
+                                        }}
+                                    >
+                                        Delete
+                                    </Button>
+                                )}
                             </td>
                         </tr>
                     ))}

@@ -201,6 +201,10 @@ export default function App() {
     handleNavigate('ADMIN_FACT_SHEETS');
   };
 
+  const handleDeleteFactSheet = (id: string) => {
+    setFactSheets(prev => prev.filter(fs => fs.id !== id));
+  };
+
   const handleDataImport = (data: { applications: LicenseApplication[], factSheets: EmployerFactSheet[] }) => {
     if (data.applications) setApplications(data.applications);
     if (data.factSheets) setFactSheets(data.factSheets);
@@ -253,6 +257,7 @@ export default function App() {
           factSheets={factSheets}
           onNewClick={() => handleNavigate('ADMIN_FACT_SHEET_NEW')}
           onBack={() => handleNavigate('ADMIN_DASHBOARD')}
+          onDelete={handleDeleteFactSheet}
         />;
       case 'ADMIN_FACT_SHEET_NEW':
         return <FactSheetForm 
