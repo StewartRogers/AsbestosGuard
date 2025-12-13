@@ -1,18 +1,62 @@
-
-
 import React from 'react';
 import { EmployerFactSheet } from '../../types';
 import { Button, Badge } from '../../components/UI';
 import { Plus, Building2 } from 'lucide-react';
+import { deleteFactSheet } from '../../services/apiService';
 
 interface FactSheetListProps {
   factSheets: EmployerFactSheet[];
   onNewClick: () => void;
   onBack: () => void;
+  onView?: (sheet: EmployerFactSheet) => void;
+  onEdit?: (sheet: EmployerFactSheet) => void;
   onDelete?: (id: string) => void; // Add optional delete handler
 }
 
-const FactSheetList: React.FC<FactSheetListProps> = ({ factSheets, onNewClick, onBack, onDelete }) => {
+const FactSheetList: React.FC<FactSheetListProps> = ({ factSheets, onNewClick, onBack, onView, onEdit, onDelete }) => {
+
+  const handleDownloadSample = () => {
+    const sampleFactSheet = [
+      {
+        employerId: "12345",
+        employerLegalName: "Sample Legal Name",
+        employerTradeName: "Sample Trade Name",
+        classificationUnit: "Construction",
+        activeStatus: "Active",
+        currentAccountBalance: 1000.0,
+        overdueBalance: 0.0,
+        yearsOfExperience: "5 years",
+        insuranceExpiry: "2026-12-31",
+        violationsRecord: "None",
+      },
+    ];
+
+    const blob = new Blob([JSON.stringify(sampleFactSheet, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "sample_fact_sheet.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Update the onDelete handler to call parent when provided
+  const handleDelete = async (id: string) => {
+    try {
+      if (onDelete) {
+        await onDelete(id);
+      } else {
+        await deleteFactSheet(id);
+      }
+      alert('Fact sheet deleted successfully!');
+    } catch (error) {
+      console.error('Failed to delete fact sheet:', error);
+      alert('Failed to delete fact sheet. Please try again.');
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex justify-between items-center mb-8">
@@ -25,6 +69,9 @@ const FactSheetList: React.FC<FactSheetListProps> = ({ factSheets, onNewClick, o
           <Button onClick={onNewClick}>
             <Plus className="h-4 w-4 mr-2" />
             New Fact Sheet
+          </Button>
+          <Button onClick={handleDownloadSample} className="ml-3">
+            Download Sample
           </Button>
         </div>
       </div>
@@ -51,8 +98,8 @@ const FactSheetList: React.FC<FactSheetListProps> = ({ factSheets, onNewClick, o
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
-                    {factSheets.map((sheet) => (
-                        <tr key={sheet.id} className="hover:bg-slate-50 transition-colors">
+                    {factSheets.map((sheet, index) => (
+                        <tr key={sheet.id || index} className="hover:bg-slate-50 transition-colors">
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                                 {sheet.employerId}
                             </td>
@@ -80,18 +127,25 @@ const FactSheetList: React.FC<FactSheetListProps> = ({ factSheets, onNewClick, o
                                 <Button 
                                 variant="outline" 
                                 className="text-xs px-2 py-1 h-auto mr-2"
-                                onClick={() => alert(`Viewing details for ${sheet.employerLegalName}`)}
+                                onClick={() => onView ? onView(sheet) : alert(`Viewing details for ${sheet.employerLegalName}`)}
                                 >
                                 View
+                                </Button>
+                                <Button 
+                                variant="outline" 
+                                className="text-xs px-2 py-1 h-auto mr-2"
+                                onClick={() => onEdit ? onEdit(sheet) : alert(`Editing details for ${sheet.employerLegalName}`)}
+                                >
+                                Edit
                                 </Button>
                                 {onDelete && (
                                     <Button 
                                         variant="danger" 
                                         className="text-xs px-2 py-1 h-auto"
                                         onClick={() => {
-                                            if (window.confirm(`Delete Fact Sheet for ${sheet.employerLegalName}?`)) {
-                                                onDelete(sheet.id);
-                                            }
+                                          if (window.confirm(`Delete Fact Sheet for ${sheet.employerLegalName}?`)) {
+                                            handleDelete(sheet.id);
+                                          }
                                         }}
                                     >
                                         Delete

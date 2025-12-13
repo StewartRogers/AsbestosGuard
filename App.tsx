@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ViewState, LicenseApplication, ApplicationStatus, LicenseType, ApplicationWizardData, EmployerFactSheet } from './types';
 import LandingPage from './pages/Landing';
@@ -10,6 +9,8 @@ import ApplicationReview from './pages/Admin/ApplicationReview';
 import FactSheetList from './pages/Admin/FactSheetList';
 import FactSheetForm from './pages/Admin/FactSheetForm';
 import { ShieldCheck } from 'lucide-react';
+import FactSheetView from './pages/Admin/FactSheetView';
+import { deleteFactSheet, updateFactSheet, createFactSheet } from './services/apiService';
 
 // Default mock wizard data to ensure the new Detail view works for existing mock items
 const DEFAULT_MOCK_WIZARD_DATA: ApplicationWizardData = {
@@ -154,6 +155,7 @@ export default function App() {
   });
 
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
+  const [selectedFactSheet, setSelectedFactSheet] = useState<EmployerFactSheet | null>(null);
 
   // Persist data whenever it changes
   useEffect(() => {
@@ -201,14 +203,32 @@ export default function App() {
     handleNavigate('ADMIN_FACT_SHEETS');
   };
 
-  const handleDeleteFactSheet = (id: string) => {
-    setFactSheets(prev => prev.filter(fs => fs.id !== id));
+  const handleDeleteFactSheet = async (id: string) => {
+    try {
+      await deleteFactSheet(id);
+      setFactSheets((prev) => prev.filter((sheet) => sheet.id !== id));
+      alert('Fact sheet deleted successfully!');
+    } catch (error) {
+      console.error('Failed to delete fact sheet:', error);
+      alert('Failed to delete fact sheet. Please try again.');
+    }
   };
 
   const handleDataImport = (data: { applications: LicenseApplication[], factSheets: EmployerFactSheet[] }) => {
     if (data.applications) setApplications(data.applications);
     if (data.factSheets) setFactSheets(data.factSheets);
     alert('Database successfully restored from file.');
+  };
+
+  // Add a handler for viewing a fact sheet
+  const handleViewFactSheet = (factSheet: EmployerFactSheet) => {
+    setSelectedFactSheet(factSheet);
+    handleNavigate('ADMIN_FACT_SHEET_VIEW');
+  };
+
+  const handleEditFactSheet = (factSheet: EmployerFactSheet) => {
+    setSelectedFactSheet(factSheet);
+    handleNavigate('ADMIN_FACT_SHEET_EDIT');
   };
 
   const renderContent = () => {
@@ -258,12 +278,43 @@ export default function App() {
           onNewClick={() => handleNavigate('ADMIN_FACT_SHEET_NEW')}
           onBack={() => handleNavigate('ADMIN_DASHBOARD')}
           onDelete={handleDeleteFactSheet}
+          onView={handleViewFactSheet}
+          onEdit={handleEditFactSheet}
         />;
       case 'ADMIN_FACT_SHEET_NEW':
         return <FactSheetForm 
           onSubmit={handleCreateFactSheet}
           onCancel={() => handleNavigate('ADMIN_FACT_SHEETS')}
         />;
+      case 'ADMIN_FACT_SHEET_EDIT':
+        if (!selectedFactSheet) return <div>Fact sheet not found</div>;
+        return (
+          <FactSheetForm
+            initialData={selectedFactSheet}
+            onSubmit={async (data) => {
+              // Update existing fact sheet
+              const updated = data as EmployerFactSheet;
+              try {
+                await updateFactSheet(updated.id, updated);
+                setFactSheets(prev => prev.map(s => s.id === updated.id ? updated : s));
+                handleNavigate('ADMIN_FACT_SHEETS');
+              } catch (err) {
+                console.error('Failed to update fact sheet:', err);
+                alert('Failed to update fact sheet.');
+              }
+            }}
+            onCancel={() => handleNavigate('ADMIN_FACT_SHEETS')}
+          />
+        );
+      // Add a case for viewing a single fact sheet
+      case 'ADMIN_FACT_SHEET_VIEW':
+        if (!selectedFactSheet) return <div>Fact sheet not found</div>;
+        return (
+          <FactSheetView 
+            factSheet={selectedFactSheet} 
+            onBack={() => handleNavigate('ADMIN_FACT_SHEETS')} 
+          />
+        );
       default:
         return <LandingPage onNavigate={handleNavigate} />;
     }

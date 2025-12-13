@@ -1,11 +1,10 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { LicenseApplication, ApplicationStatus, AIAnalysisResult, EmployerFactSheet } from '../../types';
 import { Button, Card, Badge } from '../../components/UI';
 import { ApplicationSummary } from '../../components/ApplicationSummary';
 import { analyzeApplication } from '../../services/geminiService';
 import { ArrowLeft, BrainCircuit, CheckCircle, XCircle, FileText, AlertTriangle, MessageSquare, Building2, TrendingUp, AlertOctagon, Globe, ExternalLink, Database, Terminal } from 'lucide-react';
+import { readData, writeData } from '../../services/storageService';
 
 interface ApplicationReviewProps {
   application: LicenseApplication;
@@ -40,9 +39,25 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
         setAnalysisResult(parsed);
       } catch (e) {
         console.error("Failed to parse saved AI analysis", e);
+        setAnalysisResult({ error: "Invalid AI analysis data." }); // Fallback behavior
       }
     }
   }, [application.aiAnalysis]);
+
+  // Load persisted analysis on component mount
+  useEffect(() => {
+    const loadAnalysis = async () => {
+      try {
+        const savedAnalysis = await readData('adminAnalysis');
+        if (savedAnalysis) {
+          setAnalysisResult(savedAnalysis);
+        }
+      } catch (error) {
+        console.error('Failed to load admin analysis:', error);
+      }
+    };
+    loadAnalysis();
+  }, []);
 
   const handleRunAI = async () => {
     try {
@@ -66,6 +81,22 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
     });
     onBack();
   };
+
+  // Save analysis result to file
+  const saveAnalysis = async (analysis) => {
+    try {
+      await writeData('adminAnalysis', analysis);
+    } catch (error) {
+      console.error('Failed to save admin analysis:', error);
+    }
+  };
+
+  // Call saveAnalysis whenever analysisResult is updated
+  useEffect(() => {
+    if (analysisResult) {
+      saveAnalysis(analysisResult);
+    }
+  }, [analysisResult]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -149,20 +180,6 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                 </dl>
             </Card>
 
-            <Card title="Documents">
-                <ul className="divide-y divide-slate-100">
-                {application.documents.map(doc => (
-                    <li key={doc.id} className="py-3 flex justify-between items-center">
-                    <div className="flex items-center">
-                        <FileText className="w-5 h-5 text-slate-400 mr-3" />
-                        <span className="text-sm font-medium text-slate-700">{doc.name}</span>
-                    </div>
-                    <Button variant="outline" className="text-xs px-2 py-1 h-auto">View</Button>
-                    </li>
-                ))}
-                </ul>
-            </Card>
-
             {/* Full Application Details (Wizard Data) */}
             {application.wizardData && (
                 <div className="pt-4 border-t border-slate-200">
@@ -219,6 +236,20 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                         ${matchedFactSheet.overdueBalance.toFixed(2)}
                         {matchedFactSheet.overdueBalance > 0 && <AlertOctagon className="w-3 h-3 ml-1" />}
                     </span>
+                 </div>
+
+                 {/* Safety History Details */}
+                 <div>
+                    <span className="block text-slate-500">Years of Experience</span>
+                    <span className="font-medium text-slate-900">{matchedFactSheet.yearsOfExperience || 'N/A'}</span>
+                 </div>
+                 <div>
+                    <span className="block text-slate-500">Insurance Expiry</span>
+                    <span className="font-medium text-slate-900">{matchedFactSheet.insuranceExpiry || 'N/A'}</span>
+                 </div>
+                 <div>
+                    <span className="block text-slate-500">Violations Record</span>
+                    <span className="font-medium text-slate-900">{matchedFactSheet.violationsRecord || 'N/A'}</span>
                  </div>
               </div>
             </div>

@@ -140,7 +140,9 @@ export type ViewState =
   | 'ADMIN_DASHBOARD'
   | 'ADMIN_REVIEW'
   | 'ADMIN_FACT_SHEETS'
-  | 'ADMIN_FACT_SHEET_NEW';
+  | 'ADMIN_FACT_SHEET_NEW'
+  | 'ADMIN_FACT_SHEET_VIEW'
+  | 'ADMIN_FACT_SHEET_EDIT';
 
 export interface AIAnalysisResult {
   riskScore: 'LOW' | 'MEDIUM' | 'HIGH';

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { LicenseApplication, ApplicationStatus, LicenseType, Associate, ApplicationWizardData, EmployerFactSheet } from '../../types';
 import { Button, Input, Select, Card, Badge } from '../../components/UI';
@@ -8,6 +7,7 @@ import {
   ArrowLeft, ChevronRight, ChevronLeft, Check, AlertCircle, 
   HelpCircle, Phone, Mail, UserPlus, Trash2, Building, Calendar, Hash, Info 
 } from 'lucide-react';
+import { readFromStorage, writeToStorage } from '../../services/browserStorageService';
 
 interface NewApplicationFormProps {
   onSubmit: (app: LicenseApplication) => void;
@@ -147,6 +147,17 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
     window.scrollTo(0, 0);
   }, [currentStep]);
 
+  // Load persisted applications on component mount
+  useEffect(() => {
+    const loadApplications = () => {
+      const savedApplications = readFromStorage('applications');
+      if (savedApplications) {
+        setApplications(savedApplications);
+      }
+    };
+    loadApplications();
+  }, []);
+
   const updateData = (updates: Partial<ApplicationWizardData>) => {
     setData(prev => ({ ...prev, ...updates }));
     setError(null);
@@ -253,6 +264,13 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
+  // Save application to file
+  const saveApplication = (application) => {
+    const currentApplications = readFromStorage('applications') || [];
+    currentApplications.push(application);
+    writeToStorage('applications', currentApplications);
+  };
+
   const handleSubmit = async () => {
     if (!validateStep(7)) return;
     setIsSubmitting(true);
@@ -296,13 +314,19 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
         console.log('NewApplicationForm: matchedFactSheet:', matchedFactSheet ? 'Found' : 'Not Found', matchedFactSheet);
 
         // Run AI Analysis before submitting
-        const analysis = await analyzeApplication(newApp, matchedFactSheet);
-        newApp.aiAnalysis = JSON.stringify(analysis);
+        try {
+          const analysis = await analyzeApplication(newApp, matchedFactSheet);
+          newApp.aiAnalysis = JSON.stringify(analysis);
+        } catch (e) {
+          console.error("AI Analysis failed on submit", e);
+          newApp.aiAnalysis = JSON.stringify({ error: "AI analysis failed." }); // Fallback behavior
+        }
     } catch (e) {
         console.error("AI Analysis failed on submit", e);
     }
 
     // Submit
+    saveApplication(newApp);
     onSubmit(newApp);
     setIsSubmitting(false);
   };

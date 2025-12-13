@@ -6,11 +6,12 @@ import { Button, Input, Card, Select } from '../../components/UI';
 import { ArrowLeft } from 'lucide-react';
 
 interface FactSheetFormProps {
-  onSubmit: (data: Omit<EmployerFactSheet, 'id'>) => void;
+  onSubmit: (data: EmployerFactSheet | Omit<EmployerFactSheet, 'id'>) => void;
   onCancel: () => void;
+  initialData?: EmployerFactSheet | null;
 }
 
-const FactSheetForm: React.FC<FactSheetFormProps> = ({ onSubmit, onCancel }) => {
+const FactSheetForm: React.FC<FactSheetFormProps> = ({ onSubmit, onCancel, initialData = null }) => {
   const [data, setData] = useState<Omit<EmployerFactSheet, 'id'>>({
     employerLegalName: '',
     employerTradeName: '',
@@ -27,7 +28,11 @@ const FactSheetForm: React.FC<FactSheetFormProps> = ({ onSubmit, onCancel }) => 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(data);
+    if (initialData && initialData.id) {
+      onSubmit({ id: initialData.id, ...data } as EmployerFactSheet);
+    } else {
+      onSubmit(data);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -36,6 +41,14 @@ const FactSheetForm: React.FC<FactSheetFormProps> = ({ onSubmit, onCancel }) => 
   };
 
   const isValid = data.employerLegalName && data.employerId && data.classificationUnit;
+
+  // Populate form when editing
+  React.useEffect(() => {
+    if (initialData) {
+      const { id, ...rest } = initialData;
+      setData(rest as Omit<EmployerFactSheet, 'id'>);
+    }
+  }, [initialData]);
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -47,7 +60,7 @@ const FactSheetForm: React.FC<FactSheetFormProps> = ({ onSubmit, onCancel }) => 
         Back to List
       </button>
 
-      <Card title="New Employer Fact Sheet">
+      <Card title={initialData ? 'Edit Employer Fact Sheet' : 'New Employer Fact Sheet'}>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
