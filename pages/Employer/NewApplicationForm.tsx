@@ -152,7 +152,9 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
     const loadApplications = () => {
       const savedApplications = readFromStorage('applications');
       if (savedApplications) {
-        setApplications(savedApplications);
+        // persisted applications are available; currently we do not maintain
+        // a local applications list in this component, so just log for now.
+        console.log('Loaded persisted applications count:', savedApplications.length || 0);
       }
     };
     loadApplications();

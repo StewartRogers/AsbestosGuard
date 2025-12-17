@@ -145,12 +145,45 @@ export type ViewState =
   | 'ADMIN_FACT_SHEET_EDIT';
 
 export interface AIAnalysisResult {
-  riskScore: 'LOW' | 'MEDIUM' | 'HIGH';
+  riskScore: 'LOW' | 'MEDIUM' | 'HIGH' | 'INVALID';
+  isTestAccount?: boolean;
   summary: string;
-  factSheetSummary: string; // New field for internal data comparison summary
-  webPresenceSummary: string;
+  internalRecordValidation: {
+    recordFound: boolean;
+    accountNumber?: string | null;
+    overdueBalance?: number | null;
+    statusMatch?: boolean | null;
+    concerns: string[];
+  };
+  geographicValidation: {
+    addressExistsInBC: boolean;
+    addressConflicts: string[]; // list of fields that conflict
+    verifiedLocation?: string | null; // e.g., 'Richmond, BC'
+  };
+  webPresenceValidation: {
+    companyFound: boolean;
+    relevantIndustry: boolean; // indicates asbestos/abatement relevance
+    searchSummary: string;
+  };
+  // Short human-readable summaries used in some server-side helpers
+  factSheetSummary?: string;
+  webPresenceSummary?: string;
+  certificationAnalysis: {
+    totalWorkers?: number | null;
+    certifiedWorkers?: number | null;
+    complianceRatio?: number | null; // 0-1
+    meetsRequirement?: boolean | null;
+  };
   concerns: string[];
-  recommendation: string;
+  policyViolations?: Array<{
+    field: string; // which application/fact-sheet field violates policy
+    value: string; // value observed that violates
+    policy?: string; // filename or policy title
+    clause?: string; // exact clause or quote if possible
+    recommendation?: string; // action to take
+  }>;
+  recommendation: 'APPROVE' | 'REJECT' | 'REQUEST_INFO' | 'INVALID_APPLICATION' | 'MANUAL_REVIEW_REQUIRED';
+  requiredActions: string[];
   sources?: { title: string; uri: string }[];
   debug?: {
     prompt: string;

@@ -1,7 +1,6 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
-import { GoogleGenAI } from '@google/genai';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -33,11 +32,26 @@ export default defineConfig(({ mode }) => {
                 }
 
                 try {
+                  // Dynamically require the GenAI client to avoid startup errors
+                  // if the package is not available or not compatible with this runtime.
+                  let GoogleGenAI: any = null;
+                  try {
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    GoogleGenAI = (require('@google/genai') as any).GoogleGenAI || require('@google/genai');
+                  } catch (loadErr) {
+                    GoogleGenAI = null;
+                  }
+
+                  if (!GoogleGenAI) {
+                    res.statusCode = 200;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ ok: true, models: { error: 'GenAI client not available in dev server' } }));
+                    return;
+                  }
+
                   const ai = new GoogleGenAI({ apiKey: serverApiKey });
 
                   // Probe likely client methods to retrieve available models.
-                  // Different versions of the SDK may expose different method names,
-                  // so try a few variations.
                   let modelsResult: any = null;
                   const probe = ai as any;
 
@@ -141,7 +155,22 @@ export default defineConfig(({ mode }) => {
   `;
 
                   // Call Gemini from the dev server (server-side)
-                  const ai = new GoogleGenAI({ apiKey: serverApiKey });
+                  // Dynamically require the GenAI client for the dev server handler
+                  let GoogleGenAI: any = null;
+                  try {
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    GoogleGenAI = (require('@google/genai') as any).GoogleGenAI || require('@google/genai');
+                  } catch (e) {
+                    GoogleGenAI = null;
+                  }
+                  if (!GoogleGenAI) {
+                    res.statusCode = 200;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ ok: true, models: { error: 'GenAI client not available in dev server' } }));
+                    return;
+                  }
+
+                  const ai = new (GoogleGenAI as any)({ apiKey: serverApiKey });
                   const response = await ai.models.generateContent({
                     model: 'gemini-2.5-flash-lite',
                     contents: prompt,
@@ -167,7 +196,7 @@ export default defineConfig(({ mode }) => {
                     factSheetSummary: 'Unavailable',
                     webPresenceSummary: 'Unavailable',
                     concerns: ['AI did not return JSON.'],
-                    recommendation: 'Manual Review Required',
+                    recommendation: 'MANUAL_REVIEW_REQUIRED',
                     sources,
                     debug: { prompt, rawResponse: text }
                   };

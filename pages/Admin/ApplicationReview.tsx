@@ -39,7 +39,8 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
         setAnalysisResult(parsed);
       } catch (e) {
         console.error("Failed to parse saved AI analysis", e);
-        setAnalysisResult({ error: "Invalid AI analysis data." }); // Fallback behavior
+        // If stored AI analysis can't be parsed, clear it to avoid crashes
+        setAnalysisResult(null);
       }
     }
   }, [application.aiAnalysis]);
@@ -266,6 +267,11 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
               <div className="flex items-center gap-2">
                 <BrainCircuit className="w-5 h-5 text-brand-400" />
                 <h3 className="font-semibold text-lg">AI Risk Analysis</h3>
+                {analysisResult?.policyViolations && analysisResult.policyViolations.length > 0 && (
+                  <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-700 text-red-100">
+                    {analysisResult.policyViolations.length} Violation{analysisResult.policyViolations.length > 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
               {!analysisResult && (
                 <Button 
@@ -347,7 +353,7 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                   </div>
                   
                   {/* Concerns */}
-                  {analysisResult.concerns.length > 0 && (
+                  {analysisResult?.concerns && analysisResult.concerns.length > 0 && (
                     <div>
                       <span className="text-xs uppercase text-red-400 font-bold tracking-wider mb-2 block">Identified Concerns</span>
                       <ul className="grid sm:grid-cols-2 gap-2">
@@ -358,6 +364,50 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {/* Policy Violations */}
+                  {analysisResult?.policyViolations && analysisResult.policyViolations.length > 0 ? (
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs uppercase text-red-400 font-bold tracking-wider mb-2 block">Policy Violations</span>
+                        <span className="text-xs text-slate-400">Reviewed against WorkSafeBC policies</span>
+                      </div>
+                      <ul className="space-y-3">
+                        {analysisResult.policyViolations.map((v, i) => (
+                          <li key={i} className="bg-red-900/8 border border-red-900/20 p-3 rounded">
+                            <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
+                              <div className="flex-1">
+                                <div className="text-sm font-semibold text-red-600">{v.field} <span className="text-slate-400 font-normal">— {v.value}</span></div>
+                                <div className="text-xs text-slate-400 mt-1 italic">Policy: {v.policy}</div>
+                                {v.clause && (
+                                  <blockquote className="mt-2 pl-3 border-l-2 border-slate-700 text-slate-300 text-sm">
+                                    "{v.clause}"
+                                  </blockquote>
+                                )}
+                              </div>
+                              <div className="md:ml-4 md:w-72">
+                                {v.recommendation ? (
+                                  <div className="bg-yellow-900/10 border border-yellow-800/20 rounded p-2 text-xs text-yellow-200">
+                                    <div className="font-medium text-yellow-100">Recommendation</div>
+                                    <div className="mt-1 text-[13px]">{v.recommendation}</div>
+                                  </div>
+                                ) : (
+                                  <div className="text-xs text-slate-400">No recommendation provided.</div>
+                                )}
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="bg-green-900/6 border border-green-900/20 p-3 rounded">
+                      <div className="flex items-center gap-2 text-sm text-green-300">
+                        <CheckCircle className="w-4 h-4" />
+                        No policy violations detected by the AI review.
+                      </div>
                     </div>
                   )}
                   
