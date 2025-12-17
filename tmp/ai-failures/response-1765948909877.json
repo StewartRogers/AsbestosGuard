@@ -1,0 +1,46 @@
+{
+  "sdkHttpResponse": {
+    "headers": {
+      "alt-svc": "h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000",
+      "content-encoding": "gzip",
+      "content-type": "application/json; charset=UTF-8",
+      "date": "Wed, 17 Dec 2025 05:21:48 GMT",
+      "server": "scaffolding on HTTPServer2",
+      "server-timing": "gfet4t7; dur=5129",
+      "transfer-encoding": "chunked",
+      "vary": "Origin, X-Origin, Referer",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "SAMEORIGIN",
+      "x-xss-protection": "0"
+    }
+  },
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "{\"riskScore\": \"INVALID\", \"isTestAccount\": true, \"summary\": \"Application identified as a test account due to explicit 'TEST ACCOUNT' in legal name, fictional address 'Spring"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "MAX_TOKENS",
+      "groundingMetadata": {},
+      "index": 0
+    }
+  ],
+  "modelVersion": "gemini-2.5-flash",
+  "responseId": "7D1CaeWMBrPUz7IPzdP70AM",
+  "usageMetadata": {
+    "promptTokenCount": 1984,
+    "candidatesTokenCount": 39,
+    "totalTokenCount": 3004,
+    "promptTokensDetails": [
+      {
+        "modality": "TEXT",
+        "tokenCount": 1984
+      }
+    ],
+    "thoughtsTokenCount": 981
+  }
+}

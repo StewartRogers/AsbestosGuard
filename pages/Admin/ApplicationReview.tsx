@@ -290,133 +290,77 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                   <BrainCircuit className="w-10 h-10 mx-auto mb-4 opacity-50" />
                   <p>Searching web & analyzing application data...</p>
                 </div>
-              ) : analysisResult ? (
+              ) : analysisResult ? (<>
                 <div className="space-y-6">
-                  <div className="flex justify-between items-center bg-slate-800/50 p-4 rounded-lg">
-                    <span className="text-slate-300 font-medium">Calculated Risk Score</span>
-                    <span className={`px-3 py-1 rounded text-sm font-bold tracking-wide border ${
-                      analysisResult.riskScore === 'HIGH' ? 'bg-red-500/20 text-red-300 border-red-500/50' : 
-                      analysisResult.riskScore === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50' :
-                      'bg-green-500/20 text-green-300 border-green-500/50'
-                    }`}>
-                      {analysisResult.riskScore} RISK
-                    </span>
-                  </div>
-                  
-                  {/* High Level Regulatory Summary */}
-                   <div>
-                    <span className="text-xs uppercase text-slate-500 font-bold tracking-wider flex items-center mb-2">
-                        <FileText className="w-3 h-3 mr-1" /> Regulatory Summary
-                    </span>
-                    <p className="text-sm text-slate-300 leading-relaxed bg-slate-800/30 p-3 rounded border border-slate-700/50">
-                        {analysisResult.summary}
-                    </p>
-                  </div>
-
-                  <div className="grid md:grid-cols-2 gap-6">
-                      {/* Employer Fact Sheet Summary */}
-                      <div>
-                        <span className="text-xs uppercase text-blue-400 font-bold tracking-wider flex items-center mb-2">
-                            <Database className="w-3 h-3 mr-1" /> Internal Record Check
-                        </span>
-                        <p className="text-sm text-slate-300 leading-relaxed bg-slate-800/30 p-3 rounded border border-slate-700/50 h-full">
-                            {analysisResult.factSheetSummary || "No fact sheet comparison available."}
-                        </p>
-                      </div>
-
-                      {/* Web Presence Summary */}
-                      <div>
-                        <span className="text-xs uppercase text-brand-400 font-bold tracking-wider flex items-center mb-2">
-                            <Globe className="w-3 h-3 mr-1" /> Public Web Profile
-                        </span>
-                        <div className="bg-slate-800/30 p-3 rounded border border-slate-700/50 h-full">
-                            <p className="text-sm text-slate-300 leading-relaxed mb-3">
-                                {analysisResult.webPresenceSummary || "No web presence summary available."}
-                            </p>
-                            {analysisResult.sources && analysisResult.sources.length > 0 && (
-                                <div className="pt-2 border-t border-slate-700/50">
-                                    <span className="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Sources</span>
-                                    <ul className="space-y-1">
-                                        {analysisResult.sources.map((s, i) => (
-                                            <li key={i}>
-                                                <a href={s.uri} target="_blank" rel="noopener noreferrer" className="flex items-center text-[11px] text-brand-400 hover:text-brand-300 hover:underline truncate transition-colors">
-                                                    <ExternalLink className="w-2.5 h-2.5 mr-1.5 flex-shrink-0" />
-                                                    {s.title}
-                                                </a>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                      </div>
-                  </div>
-                  
-                  {/* Concerns */}
-                  {analysisResult?.concerns && analysisResult.concerns.length > 0 && (
-                    <div>
-                      <span className="text-xs uppercase text-red-400 font-bold tracking-wider mb-2 block">Identified Concerns</span>
-                      <ul className="grid sm:grid-cols-2 gap-2">
-                        {analysisResult.concerns.map((c, i) => (
-                          <li key={i} className="text-sm text-red-200 bg-red-900/10 border border-red-900/30 p-2 rounded flex items-start">
-                            <AlertTriangle className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
-                            <span>{c}</span>
-                          </li>
-                        ))}
-                      </ul>
+                  {/* 1) Fact Sheet Analysis */}
+                  <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+                    <h4 className="text-sm font-semibold text-slate-200 mb-2">Fact Sheet Analysis</h4>
+                    <div className="text-sm text-slate-300">
+                      {analysisResult.factSheetSummary ? (
+                        <p>{analysisResult.factSheetSummary}</p>
+                      ) : (
+                        // Fallback: show parsed fact JSON if available
+                        analysisResult.debug?.perStepDebug?.fact?.parsed ? (
+                          <pre className="whitespace-pre-wrap">{JSON.stringify(analysisResult.debug.perStepDebug.fact.parsed, null, 2)}</pre>
+                        ) : (
+                          <p className="text-slate-500">No fact sheet analysis available.</p>
+                        )
+                      )}
                     </div>
-                  )}
+                  </div>
 
-                  {/* Policy Violations */}
-                  {analysisResult?.policyViolations && analysisResult.policyViolations.length > 0 ? (
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs uppercase text-red-400 font-bold tracking-wider mb-2 block">Policy Violations</span>
-                        <span className="text-xs text-slate-400">Reviewed against WorkSafeBC policies</span>
-                      </div>
-                      <ul className="space-y-3">
+                  {/* 2) Policy Violations */}
+                  <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+                    <h4 className="text-sm font-semibold text-slate-200 mb-2">Policy Violations</h4>
+                    {analysisResult.policyViolations && analysisResult.policyViolations.length > 0 ? (
+                      <ul className="space-y-3 text-sm text-slate-300">
                         {analysisResult.policyViolations.map((v, i) => (
                           <li key={i} className="bg-red-900/8 border border-red-900/20 p-3 rounded">
-                            <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-3">
-                              <div className="flex-1">
-                                <div className="text-sm font-semibold text-red-600">{v.field} <span className="text-slate-400 font-normal">— {v.value}</span></div>
-                                <div className="text-xs text-slate-400 mt-1 italic">Policy: {v.policy}</div>
-                                {v.clause && (
-                                  <blockquote className="mt-2 pl-3 border-l-2 border-slate-700 text-slate-300 text-sm">
-                                    "{v.clause}"
-                                  </blockquote>
-                                )}
-                              </div>
-                              <div className="md:ml-4 md:w-72">
-                                {v.recommendation ? (
-                                  <div className="bg-yellow-900/10 border border-yellow-800/20 rounded p-2 text-xs text-yellow-200">
-                                    <div className="font-medium text-yellow-100">Recommendation</div>
-                                    <div className="mt-1 text-[13px]">{v.recommendation}</div>
-                                  </div>
-                                ) : (
-                                  <div className="text-xs text-slate-400">No recommendation provided.</div>
-                                )}
-                              </div>
-                            </div>
+                            <div className="text-sm font-semibold text-red-400">{v.field} — <span className="text-slate-300 font-normal">{v.value}</span></div>
+                            <div className="text-xs text-slate-400 mt-1">Policy: {v.policy}</div>
+                            {v.clause && (
+                              <blockquote className="mt-2 pl-3 border-l-2 border-slate-700 text-slate-300 text-sm">{v.clause}</blockquote>
+                            )}
+                            {v.recommendation && (
+                              <div className="mt-2 text-xs text-yellow-200 bg-yellow-900/8 border border-yellow-800/20 rounded p-2">{v.recommendation}</div>
+                            )}
                           </li>
                         ))}
                       </ul>
-                    </div>
-                  ) : (
-                    <div className="bg-green-900/6 border border-green-900/20 p-3 rounded">
-                      <div className="flex items-center gap-2 text-sm text-green-300">
-                        <CheckCircle className="w-4 h-4" />
-                        No policy violations detected by the AI review.
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Recommendation */}
-                  <div className="bg-slate-700 rounded p-4 border border-slate-600">
-                    <span className="text-xs uppercase text-brand-400 font-bold tracking-wider block mb-1">AI Recommendation</span>
-                    <p className="text-base text-white font-medium">{analysisResult.recommendation}</p>
+                    ) : (
+                      <div className="text-sm text-green-300">No policy violations detected.</div>
+                    )}
                   </div>
-                  
+
+                  {/* 3) Web Profile Summary */}
+                  <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+                    <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary</h4>
+                    <div className="text-sm text-slate-300">
+                      {analysisResult.webPresenceSummary ? (
+                        <p>{analysisResult.webPresenceSummary}</p>
+                      ) : (
+                        analysisResult.debug?.perStepDebug?.web?.parsed ? (
+                          <pre className="whitespace-pre-wrap">{JSON.stringify(analysisResult.debug.perStepDebug.web.parsed, null, 2)}</pre>
+                        ) : (
+                          <p className="text-slate-500">No web profile summary available.</p>
+                        )
+                      )}
+                      {analysisResult.sources && analysisResult.sources.length > 0 && (
+                        <div className="mt-3">
+                          <div className="text-[11px] text-slate-400 uppercase mb-1">Sources</div>
+                          <ul className="space-y-1 text-[13px]">
+                            {analysisResult.sources.map((s, i) => (
+                              <li key={i}>
+                                <a href={s.uri} target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">{s.title}</a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                   <div className="text-right flex justify-end items-center gap-4">
                      {analysisResult.debug && (
                         <button 
@@ -438,22 +382,120 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                     </button>
                   </div>
 
-                  {/* Debug View */}
                   {showDebug && analysisResult.debug && (
                     <div className="mt-4 p-4 bg-black rounded border border-slate-700 font-mono text-[11px] text-slate-300 overflow-x-auto shadow-inner animate-fadeIn">
                         <div className="mb-6">
-                            <strong className="text-green-400 block mb-2 border-b border-slate-800 pb-1">PROMPT SENT TO GEMINI:</strong>
-                            <pre className="whitespace-pre-wrap">{analysisResult.debug.prompt}</pre>
+                            <strong className="text-green-400 block mb-2 border-b border-slate-800 pb-1">PROMPT(S) SENT TO GEMINI:</strong>
+                            {analysisResult.debug.perStepDebug ? (
+                              <div className="space-y-4">
+                                {analysisResult.debug.perStepDebug.fact && (
+                                  <div>
+                                    <div className="text-xs text-slate-500 mb-1">Fact-sheet prompt</div>
+                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.fact.prompt}</pre>
+                                  </div>
+                                )}
+                                {analysisResult.debug.perStepDebug.policy && (
+                                  <div>
+                                    <div className="text-xs text-slate-500 mb-1">Policy comparison prompt</div>
+                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.policy.prompt}</pre>
+                                  </div>
+                                )}
+                                {analysisResult.debug.perStepDebug.web && (
+                                  <div>
+                                    <div className="text-xs text-slate-500 mb-1">Web search prompt</div>
+                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.web.prompt}</pre>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <pre className="whitespace-pre-wrap">{analysisResult.debug.prompt}</pre>
+                            )}
                         </div>
                         <div>
                             <strong className="text-brand-400 block mb-2 border-b border-slate-800 pb-1">RAW RESPONSE FROM GEMINI:</strong>
-                            <pre className="whitespace-pre-wrap">{analysisResult.debug.rawResponse}</pre>
+                            {analysisResult.debug.perStepDebug ? (
+                              <div className="space-y-4">
+                                {analysisResult.debug.perStepDebug.fact && (
+                                  <div>
+                                    <div className="text-xs text-slate-500 mb-1">Fact-sheet analysis (fact)</div>
+                                    <div className="text-[11px] text-slate-400 mb-1">
+                                      <span className="mr-3">Status: {analysisResult.debug.perStepDebug.fact.parsed ? (
+                                        <span className="text-green-300">Success — parsed JSON</span>
+                                      ) : (
+                                        <span className="text-amber-300">Error — parsing failed</span>
+                                      )}</span>
+                                      <span className="mr-3">Started: {analysisResult.debug.perStepDebug.fact.startedAt}</span>
+                                      <span className="mr-3">Duration: {analysisResult.debug.perStepDebug.fact.durationMs ? `${analysisResult.debug.perStepDebug.fact.durationMs}ms` : 'n/a'}</span>
+                                      {analysisResult.debug.perStepDebug.fact.finishReason ? (
+                                        <span className="ml-2 text-xs text-slate-500">({analysisResult.debug.perStepDebug.fact.finishReason})</span>
+                                      ) : null}
+                                    </div>
+                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.fact.raw}</pre>
+                                    {analysisResult.debug.perStepDebug.fact.parsed && (
+                                      <div className="mt-2">
+                                        <div className="text-xs text-slate-500 mb-1">Parsed JSON:</div>
+                                        <pre className="whitespace-pre-wrap">{JSON.stringify(analysisResult.debug.perStepDebug.fact.parsed, null, 2)}</pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {analysisResult.debug.perStepDebug.policy && (
+                                  <div>
+                                    <div className="text-xs text-slate-500 mb-1">Policy comparison (policy)</div>
+                                    <div className="text-[11px] text-slate-400 mb-1">
+                                      <span className="mr-3">Status: {analysisResult.debug.perStepDebug.policy.parsed ? (
+                                        <span className="text-green-300">Success — parsed JSON</span>
+                                      ) : (
+                                        <span className="text-amber-300">Error — parsing failed</span>
+                                      )}</span>
+                                      <span className="mr-3">Started: {analysisResult.debug.perStepDebug.policy.startedAt}</span>
+                                      <span className="mr-3">Duration: {analysisResult.debug.perStepDebug.policy.durationMs ? `${analysisResult.debug.perStepDebug.policy.durationMs}ms` : 'n/a'}</span>
+                                      {analysisResult.debug.perStepDebug.policy.finishReason ? (
+                                        <span className="ml-2 text-xs text-slate-500">({analysisResult.debug.perStepDebug.policy.finishReason})</span>
+                                      ) : null}
+                                    </div>
+                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.policy.raw}</pre>
+                                    {analysisResult.debug.perStepDebug.policy.parsed && (
+                                      <div className="mt-2">
+                                        <div className="text-xs text-slate-500 mb-1">Parsed JSON:</div>
+                                        <pre className="whitespace-pre-wrap">{JSON.stringify(analysisResult.debug.perStepDebug.policy.parsed, null, 2)}</pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {analysisResult.debug.perStepDebug.web && (
+                                  <div>
+                                    <div className="text-xs text-slate-500 mb-1">Web search (web)</div>
+                                    <div className="text-[11px] text-slate-400 mb-1">
+                                      <span className="mr-3">Status: {analysisResult.debug.perStepDebug.web.parsed ? (
+                                        <span className="text-green-300">Success — parsed JSON</span>
+                                      ) : (
+                                        <span className="text-amber-300">Error — parsing failed</span>
+                                      )}</span>
+                                      <span className="mr-3">Started: {analysisResult.debug.perStepDebug.web.startedAt}</span>
+                                      <span className="mr-3">Duration: {analysisResult.debug.perStepDebug.web.durationMs ? `${analysisResult.debug.perStepDebug.web.durationMs}ms` : 'n/a'}</span>
+                                      {analysisResult.debug.perStepDebug.web.finishReason ? (
+                                        <span className="ml-2 text-xs text-slate-500">({analysisResult.debug.perStepDebug.web.finishReason})</span>
+                                      ) : null}
+                                    </div>
+                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.web.raw}</pre>
+                                    {analysisResult.debug.perStepDebug.web.parsed && (
+                                      <div className="mt-2">
+                                        <div className="text-xs text-slate-500 mb-1">Parsed JSON:</div>
+                                        <pre className="whitespace-pre-wrap">{JSON.stringify(analysisResult.debug.perStepDebug.web.parsed, null, 2)}</pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <pre className="whitespace-pre-wrap">{analysisResult.debug.rawResponse}</pre>
+                            )}
                         </div>
                     </div>
                   )}
 
-                </div>
-              ) : (
+              </>) : (
                 <div className="text-center py-6 text-slate-400 text-sm">
                   Click 'Run Analysis' to have Gemini review this application for risk factors and search the web for company details.
                 </div>

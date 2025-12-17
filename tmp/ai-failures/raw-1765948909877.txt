@@ -1,0 +1,1 @@
+{"riskScore": "INVALID", "isTestAccount": true, "summary": "Application identified as a test account due to explicit 'TEST ACCOUNT' in legal name, fictional address 'Spring

@@ -1,4 +1,15 @@
 import { LicenseApplication, AIAnalysisResult, EmployerFactSheet } from "../types";
+
+const CONFIG = {
+  DEFAULT_TIMEOUT_MS: 15000,
+  DEFAULT_MODEL: 'gemini-2.5-flash-lite',
+  CERTIFICATION_REQUIREMENT: 1.0, // 100%
+  OVERDUE_BALANCE_THRESHOLD: 500,
+  INSURANCE_EXPIRY_THRESHOLD_MONTHS: 6,
+  MAX_OUTPUT_TOKENS: 1024,
+  // Set temperature to 0 for deterministic JSON output by default
+  TEMPERATURE: 0.0,
+} as const;
 // Load Ajv dynamically so TypeScript doesn't require installed types at build
 // time in developer environments where the package may not yet be installed.
 let validateAiAnalysis: (data: any) => boolean;
@@ -38,219 +49,278 @@ try {
   validateAiAnalysis = (_: any) => true;
 }
 
+// Basic input validation for incoming requests
+function validateApplicationInput(application: LicenseApplication): void {
+  if (!application) throw new Error('Application is required');
+  if (!application.companyName || !application.companyName.trim()) throw new Error('Company name is required');
+  if (!application.address || !application.address.trim()) throw new Error('Address is required');
+}
+
+// Type guard for AIAnalysisResult to provide runtime checks
+function isValidAIAnalysisResult(obj: any): obj is AIAnalysisResult {
+  if (!obj || typeof obj !== 'object') return false;
+  const allowed = ['LOW', 'MEDIUM', 'HIGH', 'INVALID'];
+  if (!('riskScore' in obj) || !allowed.includes(obj.riskScore)) return false;
+  if (typeof obj.summary !== 'string') return false;
+  if (!obj.internalRecordValidation || typeof obj.internalRecordValidation !== 'object') return false;
+  if (!obj.geographicValidation || typeof obj.geographicValidation !== 'object') return false;
+  if (!obj.webPresenceValidation || typeof obj.webPresenceValidation !== 'object') return false;
+  return true;
+}
+
 export const analyzeApplication = async (
   application: LicenseApplication, 
   factSheet?: EmployerFactSheet
 ): Promise<AIAnalysisResult> => {
-  // Support multiple runtime environments:
-  // - Node/server: `process.env.API_KEY`
-  // - Vite/browser dev: `import.meta.env.VITE_API_KEY` (use for local dev only)
+  // Validate required input early to fail fast and provide clear errors
+  validateApplicationInput(application);
+  // Key resolution: use only the server environment variable `GEMINI_API_KEY`.
+  // This centralizes key management to a single location (e.g. .env.local).
   const nodeKey = (typeof process !== 'undefined' && process.env)
-    ? (process.env.GEMINI_API_KEY || process.env.API_KEY || process.env.GOOGLE_API_KEY)
+    ? process.env.GEMINI_API_KEY
     : undefined;
 
+  // Do not default the model; require `GEMINI_MODEL` to be set in the server env.
   const nodeModel = (typeof process !== 'undefined' && process.env)
-    ? (process.env.GEMINI_MODEL || process.env.MODEL || 'gemini-2.5-flash-lite')
-    : 'gemini-2.5-flash-lite';
+    ? process.env.GEMINI_MODEL
+    : undefined;
 
-  // Safely attempt to read Vite's `import.meta.env.VITE_API_KEY`.
-  // Avoid using `typeof import` which is a syntax error for the bundler.
-  let viteKey: string | undefined = undefined;
-  try {
-    viteKey = (import.meta as any)?.env?.VITE_API_KEY as string | undefined;
-  } catch (e) {
-    viteKey = undefined;
-  }
+  const resolvedKey = nodeKey;
 
-  const apiKey = nodeKey || viteKey;
-  // If no server or Vite key, allow a localStorage fallback for quick local testing
-  // (useful when you don't want to restart the dev server). This is INSECURE
-  // and intended only for local testing — do NOT use in production.
-  let localStorageKey: string | null = null;
-  if (!apiKey && typeof window !== 'undefined' && window.localStorage) {
-    try {
-      // Support either `VITE_API_KEY` or a more generic `GEMINI_API_KEY` stored locally
-      localStorageKey = window.localStorage.getItem('VITE_API_KEY') || window.localStorage.getItem('GEMINI_API_KEY');
-    } catch (e) {
-      localStorageKey = null;
-    }
-  }
-
-  const resolvedKey = nodeKey || viteKey || (localStorageKey ?? undefined);
-
-  // Debug: indicate which env source (if any) supplied the key.
-  // Mask actual values — only show presence to avoid leaking secrets in logs.
+  // Debug: indicate whether the server env provided a key.
   try {
     console.debug('geminiService: key presence', {
       hasNodeKey: !!nodeKey,
-      hasViteKey: !!viteKey,
-      hasLocalStorageKey: !!localStorageKey,
-      resolvedFrom: nodeKey ? 'node' : viteKey ? 'vite' : localStorageKey ? 'localStorage' : 'none'
+      resolvedFrom: nodeKey ? 'node' : 'none'
     });
   } catch (e) {
     // ignore logging errors
   }
 
+  // Centralized fallback factory to avoid repeating near-identical objects.
+  function createFallbackAnalysis(opts: {
+    riskScore?: 'LOW' | 'MEDIUM' | 'HIGH' | 'INVALID',
+    isTestAccount?: boolean,
+    summary?: string,
+    concerns?: string[],
+    recommendation?: string,
+    factSheetSummary?: string,
+    webPresenceSummary?: string,
+    debugPrompt?: string,
+    rawResponse?: string,
+    extraDebug?: any,
+    preserve?: any
+  }): AIAnalysisResult {
+    const {
+      riskScore = 'MEDIUM',
+      isTestAccount = false,
+      summary = 'AI returned an unexpected response. Manual review required.',
+      concerns = ['AI response parsing failed.'],
+      recommendation = 'MANUAL_REVIEW_REQUIRED',
+      factSheetSummary = 'Analysis unavailable.',
+      webPresenceSummary = 'Analysis unavailable.',
+      debugPrompt = '',
+      rawResponse = '',
+      extraDebug = undefined,
+      preserve = {}
+    } = opts || {};
+
+    const base: AIAnalysisResult = {
+      riskScore,
+      isTestAccount,
+      summary,
+      internalRecordValidation: preserve.internalRecordValidation || { recordFound: false, accountNumber: null, overdueBalance: null, statusMatch: null, concerns: [] },
+      geographicValidation: preserve.geographicValidation || { addressExistsInBC: false, addressConflicts: [], verifiedLocation: null },
+      webPresenceValidation: preserve.webPresenceValidation || { companyFound: false, relevantIndustry: false, searchSummary: '' },
+      certificationAnalysis: preserve.certificationAnalysis || { totalWorkers: null, certifiedWorkers: null, complianceRatio: null, meetsRequirement: null },
+      concerns,
+      policyViolations: preserve.policyViolations || [],
+      recommendation,
+      requiredActions: preserve.requiredActions || [],
+      sources: preserve.sources || [],
+      debug: Object.assign(
+        { prompt: debugPrompt || '', rawResponse: rawResponse || '' },
+        extraDebug || {}
+      )
+    } as AIAnalysisResult;
+
+    // Optional user-facing summaries
+    (base as any).factSheetSummary = opts.factSheetSummary || factSheetSummary;
+    (base as any).webPresenceSummary = opts.webPresenceSummary || webPresenceSummary;
+
+    return base;
+  }
+
   // If running in a browser, always call the server-side proxy endpoint
   // to avoid loading server-only model SDKs in the client bundle.
   if (typeof window !== 'undefined') {
-    const endpoints = ['/__api/gemini/analyze', 'http://localhost:5000/__api/gemini/analyze'];
-    let lastError: any = null;
-    // Client-side fetch timeout to avoid indefinite hanging when proxy is unreachable.
-    const DEFAULT_PROXY_TIMEOUT_MS = 15000; // 15 seconds
-    for (const endpoint of endpoints) {
-      try {
-        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        const signal = controller ? controller.signal : undefined;
-        const timeoutId = controller ? setTimeout(() => controller.abort(), DEFAULT_PROXY_TIMEOUT_MS) : undefined;
-
-        let res: Response;
+    // Helper: attempt multiple proxy endpoints with per-request timeout
+    async function tryProxyEndpoints(endpoints: string[], payload: any, timeoutMs = CONFIG.DEFAULT_TIMEOUT_MS) {
+      let lastError: any = null;
+      for (const endpoint of endpoints) {
         try {
-          res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ application, factSheet }),
-            signal,
-          } as any);
-        } finally {
-          if (timeoutId) clearTimeout(timeoutId);
-        }
+          const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          const signal = controller ? controller.signal : undefined;
+          const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+          try {
+            const res = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+              signal,
+            } as any);
+            const bodyText = await res.text();
+            let json: any = null;
+            try { json = bodyText ? JSON.parse(bodyText) : null; } catch (e) { json = null; }
 
-        const bodyText = await res.text();
-        let json: any = null;
-        try { json = bodyText ? JSON.parse(bodyText) : null; } catch(e) { json = null; }
-
-        if (res.ok && json) {
-          if (json && json.riskScore) return json as AIAnalysisResult;
-          if (json && json.error) {
-            console.error('Gemini proxy returned error payload:', json.error);
-            lastError = json.error;
+            if (res.ok && json) {
+              if (json && json.riskScore) return { ok: true, json };
+              if (json && json.error) {
+                console.error('Gemini proxy returned error payload:', json.error);
+                lastError = json.error;
+                continue;
+              }
+            } else {
+              console.error('Gemini proxy responded with status', res.status, 'body:', bodyText, 'from', endpoint);
+              lastError = bodyText || `Status ${res.status}`;
+              continue;
+            }
+          } finally {
+            if (timeoutId) clearTimeout(timeoutId);
           }
-        } else {
-          console.error('Gemini proxy responded with status', res.status, 'body:', bodyText, 'from', endpoint);
-          lastError = bodyText || `Status ${res.status}`;
+        } catch (e: any) {
+          if (e && e.name === 'AbortError') {
+            console.error('Gemini proxy request aborted due to timeout to', endpoint);
+            lastError = 'timeout';
+          } else {
+            console.error('Failed to call Gemini proxy at', endpoint, e);
+            lastError = e;
+          }
+          continue;
         }
-      } catch (e: any) {
-        // Distinguish timeout aborts from other network errors for diagnostics
-        if (e && e.name === 'AbortError') {
-          console.error('Gemini proxy request aborted due to timeout to', endpoint);
-          lastError = 'timeout';
-        } else {
-          console.error('Failed to call Gemini proxy at', endpoint, e);
-          lastError = e;
-        }
-        // try next endpoint
       }
+      return { ok: false, lastError };
     }
 
-    // If we reach here, proxy call(s) failed. Return graceful fallback with debug info.
-    const raw = typeof lastError === 'string' ? lastError : (lastError && lastError.message) ? lastError.message : String(lastError);
-    return {
+    const endpoints = ['/__api/gemini/analyze', 'http://localhost:5000/__api/gemini/analyze'];
+    const proxyResult = await tryProxyEndpoints(endpoints, { application, factSheet }, CONFIG.DEFAULT_TIMEOUT_MS);
+    if (proxyResult.ok) return proxyResult.json as AIAnalysisResult;
+
+    const raw = typeof proxyResult.lastError === 'string' ? proxyResult.lastError : (proxyResult.lastError && proxyResult.lastError.message) ? proxyResult.lastError.message : String(proxyResult.lastError);
+    return createFallbackAnalysis({
       riskScore: 'LOW',
-      isTestAccount: false,
       summary: "AI Analysis unavailable. Server proxy call failed or returned an error.",
-      internalRecordValidation: { recordFound: false, accountNumber: null, overdueBalance: null, statusMatch: null, concerns: [] },
-      geographicValidation: { addressExistsInBC: false, addressConflicts: [], verifiedLocation: null },
-      webPresenceValidation: { companyFound: false, relevantIndustry: false, searchSummary: '' },
-      certificationAnalysis: { totalWorkers: null, certifiedWorkers: null, complianceRatio: null, meetsRequirement: null },
       concerns: ["System configuration error."],
-      policyViolations: [],
       recommendation: 'MANUAL_REVIEW_REQUIRED',
-      requiredActions: [],
       factSheetSummary: "Analysis unavailable.",
       webPresenceSummary: "Search unavailable without API Key.",
-      sources: [],
-      debug: {
-        prompt: 'Prompt not generated because proxy call failed on the client.',
-        rawResponse: `Proxy unreachable or returned error. Last error: ${raw}. Check server logs and /__api/gemini/analyze on the backend.`
-      }
-    } as AIAnalysisResult;
+      debugPrompt: 'Prompt not generated because proxy call failed on the client.',
+      rawResponse: `Proxy unreachable or returned error. Last error: ${raw}. Check server logs and /__api/gemini/analyze on the backend.`
+    });
   }
 
   // If we are here, we are running server-side (Node). Ensure we have a nodeKey
   if (!nodeKey) {
-    return {
+    return createFallbackAnalysis({
       riskScore: 'LOW',
-      isTestAccount: false,
       summary: "AI Analysis unavailable. API Key is missing in the server environment.",
-      internalRecordValidation: { recordFound: false, accountNumber: null, overdueBalance: null, statusMatch: null, concerns: [] },
-      geographicValidation: { addressExistsInBC: false, addressConflicts: [], verifiedLocation: null },
-      webPresenceValidation: { companyFound: false, relevantIndustry: false, searchSummary: '' },
-      certificationAnalysis: { totalWorkers: null, certifiedWorkers: null, complianceRatio: null, meetsRequirement: null },
       concerns: ["System configuration error."],
-      policyViolations: [],
       recommendation: 'MANUAL_REVIEW_REQUIRED',
-      requiredActions: [],
       factSheetSummary: "Analysis unavailable.",
       webPresenceSummary: "Search unavailable without API Key.",
-      sources: [],
-      debug: {
-        prompt: 'Prompt not generated because server API key is missing.',
-        rawResponse: 'Server-side API key missing. Set GEMINI_API_KEY in .env.local or environment.'
-      }
-    } as AIAnalysisResult;
+      debugPrompt: 'Prompt not generated because server API key is missing.',
+      rawResponse: 'Server-side API key missing. Set GEMINI_API_KEY in .env.local or environment.'
+    });
+  }
+
+  // Require model to be explicitly configured in the server environment.
+  if (!nodeModel) {
+    return createFallbackAnalysis({
+      riskScore: 'LOW',
+      summary: 'AI Analysis unavailable. GEMINI_MODEL is not configured on the server.',
+      concerns: ['System configuration error: missing GEMINI_MODEL.'],
+      recommendation: 'MANUAL_REVIEW_REQUIRED',
+      factSheetSummary: 'Analysis unavailable.',
+      webPresenceSummary: 'Search unavailable without model configuration.',
+      debugPrompt: 'Prompt not generated because server model is missing.',
+      rawResponse: 'Server-side GEMINI_MODEL missing. Set GEMINI_MODEL in .env.local or environment.'
+    });
   }
 
   const companyInfo = `${application.companyName} located at ${application.address}`;
   const tradeName = application.wizardData?.firmTradeName ? `(also known as ${application.wizardData.firmTradeName})` : '';
 
+  // Use compact JSON to reduce prompt token count (avoid pretty printing)
   const factSheetContext = factSheet 
-    ? JSON.stringify(factSheet, null, 2)
+    ? JSON.stringify(factSheet)
     : "NO MATCHING EMPLOYER FACT SHEET FOUND IN INTERNAL DATABASE.";
-
   // Fetch policy documents (server exposes /api/policies)
-  let policiesText = '';
-  try {
-    if (typeof window !== 'undefined') {
-      const resp = await fetch('/api/policies');
-      if (resp.ok) {
+  async function loadPoliciesText(): Promise<string> {
+    try {
+      if (typeof window !== 'undefined') {
         try {
-          const json = await resp.json();
-          policiesText = json.combinedText || '';
-        } catch (e) {
+          const resp = await fetch('/api/policies');
           const body = await resp.text();
-          console.warn('Policy endpoint returned non-JSON response:', body);
+          if (!resp.ok) {
+            console.warn('Policy endpoint responded with non-OK status', resp.status, body);
+            return '';
+          }
+          try {
+            const json = JSON.parse(body);
+            return json.combinedText || '';
+          } catch (e) {
+            console.warn('Policy endpoint returned non-JSON response:', body);
+            return '';
+          }
+        } catch (e) {
+          console.warn('Failed fetching /api/policies from client:', e);
+          return '';
         }
       } else {
-        const body = await resp.text();
-        console.warn('Policy endpoint responded with non-OK status', resp.status, body);
-      }
-    } else {
-      // If running server-side with nodeKey available, attempt to read via local file path
-      try {
-        // Dynamically import Node-only modules to avoid ESM `require` issues
-        const fs = await import('fs');
-        const pathMod = await import('path');
-        let mammoth: any = null;
-        try { mammoth = await import('mammoth'); } catch (e) { mammoth = null; }
+        // Server-side: attempt to read .docx files under ./docs and extract text with mammoth
+        try {
+          const fs = await import('fs');
+          const pathMod = await import('path');
+          let mammoth: any = null;
+          try { mammoth = await import('mammoth'); } catch (e) { mammoth = null; }
 
-        const docsPath = pathMod.resolve(process.cwd(), 'docs');
-        if (fs.existsSync(docsPath)) {
+          const docsPath = pathMod.resolve(process.cwd(), 'docs');
+          if (!fs.existsSync(docsPath)) return '';
           const files = fs.readdirSync(docsPath).filter((f: string) => f.endsWith('.docx'));
+          if (!files.length) return '';
           const parts: string[] = [];
           for (const f of files) {
+            const abs = pathMod.join(docsPath, f);
             try {
-              const buffer = fs.readFileSync(pathMod.join(docsPath, f));
+              const buffer = fs.readFileSync(abs);
               if (mammoth && typeof mammoth.extractRawText === 'function') {
-                const m = await mammoth.extractRawText({ buffer });
-                parts.push(`--- ${f} ---\n` + (m?.value || ''));
+                try {
+                  const m = await mammoth.extractRawText({ buffer });
+                  parts.push(`--- ${f} ---\n` + (m?.value || ''));
+                } catch (e) {
+                  console.warn('Failed to extract text from', f, e);
+                  parts.push(`--- ${f} ---\n[Extraction failed]`);
+                }
               } else {
-                // If mammoth not available, just note the filename
-                parts.push(`--- ${f} ---\n` + '[Unable to extract text: mammoth not installed]');
+                parts.push(`--- ${f} ---\n[Unable to extract text: mammoth not installed]`);
               }
             } catch (e) {
-              // ignore individual file errors
+              console.warn('Failed reading policy file', abs, e);
             }
           }
-          policiesText = parts.join('\n\n');
+          return parts.join('\n\n');
+        } catch (e) {
+          console.warn('Could not load policy documents for AI prompt (server-side):', e);
+          return '';
         }
-      } catch (e) {
-        // if requires fail, ignore and continue
       }
+    } catch (e) {
+      console.warn('Unexpected error loading policies:', e);
+      return '';
     }
-  } catch (e) {
-    console.warn('Could not load policy documents for AI prompt:', e);
   }
+
+  const policiesText = await loadPoliciesText();
 
   // Debug: Log the factSheet and context sent to AI
   console.log('geminiService: factSheet provided:', !!factSheet);
@@ -261,6 +331,16 @@ export const analyzeApplication = async (
   }
   console.log('geminiService: factSheetContext preview:', factSheetContext.substring(0, 200) + '...');
 
+  // Serialize application compactly to shrink prompt size
+  const applicationJsonCompact = JSON.stringify(application);
+
+  // Limit the size of policy text embedded in the prompt to avoid exhausting
+  // the model context window. Keep a useful prefix if policies are large.
+  const MAX_POLICIES_CHARS = 15000;
+  const policiesSnippet = policiesText && policiesText.length > MAX_POLICIES_CHARS
+    ? policiesText.slice(0, MAX_POLICIES_CHARS) + '\n---TRUNCATED---'
+    : policiesText || '';
+
   const prompt = `
 ROLE & CONTEXT:
 You are a Regulatory Risk Analysis Engine for WorkSafeBC (Asbestos Licensing). Your goal is to assess risk, identify policy violations against WorkSafeBC licensing expectations (certification ratios, valid BC addresses, account standing), and provide a structured JSON report.
@@ -270,7 +350,10 @@ INPUT DATA:
 ${factSheetContext}
 
 - APPLICATION_DATA:
-${JSON.stringify(application, null, 2)}
+${applicationJsonCompact}
+
+- POLICY_TEXT:
+${policiesSnippet}
 
 ANALYSIS FRAMEWORK & RULES:
 1) Data Reconciliation Rules
@@ -279,15 +362,15 @@ ANALYSIS FRAMEWORK & RULES:
 
 2) Risk Scoring Criteria (apply the highest triggered rule):
    - CRITICAL / INVALID: Test account indicators, discovered fabricated data, or automated detection of clearly fictional values.
-   - HIGH: No internal record found OR overdueBalance > 500 OR verified non-BC address OR conflicting addresses OR enforcement actions recorded OR missing required certifications.
-   - MEDIUM: Record found with minor past violations, insurance expiry < 6 months, certification ratio < 100% but not zero.
+  - HIGH: No internal record found OR overdueBalance > ${CONFIG.OVERDUE_BALANCE_THRESHOLD} OR verified non-BC address OR conflicting addresses OR enforcement actions recorded OR missing required certifications.
+  - MEDIUM: Record found with minor past violations, insurance expiry < ${CONFIG.INSURANCE_EXPIRY_THRESHOLD_MONTHS} months, certification ratio < ${Math.floor(CONFIG.CERTIFICATION_REQUIREMENT*100)}% but not zero.
    - LOW: Record found, no overdue balance, address in BC, certification ratio meets requirement.
 
 3) Geographic Boundaries:
   - Valid addresses must be within British Columbia, Canada. Verify that the provided address resolves to a BC location. If address is outside BC or cannot be located, set 'geographicValidation.addressExistsInBC=false'.
 
 4) Certification Requirement:
-  - All workers performing abatement must be certified. Required compliance ratio = 1.0 (100%). Calculate 'complianceRatio = certifiedWorkers / totalWorkers' and set 'meetsRequirement' accordingly.
+  - All workers performing abatement must be certified. Required compliance ratio = ${CONFIG.CERTIFICATION_REQUIREMENT} (100%). Calculate 'complianceRatio = certifiedWorkers / totalWorkers' and set 'meetsRequirement' accordingly.
 
 5) Web Search Protocol (limited, document what you searched):
    1. "[Company Name] [City] BC asbestos"
@@ -298,12 +381,12 @@ ANALYSIS FRAMEWORK & RULES:
 
 6) Priority Flagging (Severity):
    - CRITICAL (INVALID_APPLICATION): No internal record + fabricated data.
-   - HIGH (REJECT): Overdue balance > $500, fake/non-BC address, test account, outstanding enforcement actions.
-   - MEDIUM (REQUEST_INFO): Minor past violations, expiring insurance < 6 months, certification ratio issues.
+  - HIGH (REJECT): Overdue balance > $${CONFIG.OVERDUE_BALANCE_THRESHOLD}, fake/non-BC address, test account, outstanding enforcement actions.
+  - MEDIUM (REQUEST_INFO): Minor past violations, expiring insurance < ${CONFIG.INSURANCE_EXPIRY_THRESHOLD_MONTHS} months, certification ratio issues.
    - LOW (APPROVE): Clear internal match, certifications OK, no adverse web evidence.
 
 OUTPUT REQUIREMENTS (Strict JSON ONLY):
-You MUST return ONLY a raw JSON object. Do NOT wrap it in markdown code fences (```json). Do NOT include any explanatory text before or after the JSON. The first character of your response must be { and the last character must be }.
+You MUST return ONLY a raw JSON object on a single line. Do NOT wrap it in markdown code fences (\`\`\`json). Do NOT include any explanatory text before or after the JSON. The first character of your response must be { and the last character must be }.
 
 {
   "riskScore": "LOW" | "MEDIUM" | "HIGH" | "INVALID",
@@ -348,8 +431,8 @@ EXTRA GUIDANCE:
 
 EXAMPLES:
 1) HIGH RISK:
-   - Input: No internal record + overdueBalance 1000
-   - Expected: "riskScore":"HIGH", "recommendation":"REJECT", concerns includes 'No internal record' and 'overdue balance $1000'
+  - Input: No internal record + overdueBalance 1000
+  - Expected: "riskScore":"HIGH", "recommendation":"REJECT", concerns includes 'No internal record' and 'overdue balance $1000'
 
 2) MEDIUM RISK:
    - Input: Record found, minor past violation, certification ratio 0.9
@@ -358,7 +441,7 @@ EXAMPLES:
 WEB SEARCH NOTES:
 Return 'sources' as an array of {title, uri} for any web evidence you cite.
 
-END OF INSTRUCTIONS.
+-- (POLICIES_SNIPPET may be truncated in this prompt to avoid exceeding model context window.)
 `;
 
   try {
@@ -376,61 +459,133 @@ END OF INSTRUCTIONS.
       throw new Error('GenAI client (@google/genai) is not available in the server environment. Please install and configure it.');
     }
 
-    const ai = new (GoogleGenAI as any)({ apiKey });
+    const ai = new (GoogleGenAI as any)({ apiKey: resolvedKey });
 
-    const response = await ai.models.generateContent({
-      model: nodeModel || 'gemini-2.5-flash-lite',
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-        temperature: 0.7, // optional: control creativity
-        maxOutputTokens: 1024, // optional: set max response length
-      }
-    });
+    // Helper to call the model, handle MAX_TOKENS continuation, and parse JSON
+    async function generateAndParse(modelPrompt: string) {
+      const startedAt = new Date();
+      try {
+        const resp = await ai.models.generateContent({
+          model: nodeModel,
+          contents: modelPrompt,
+          config: { tools: [{ googleSearch: {} }], temperature: CONFIG.TEMPERATURE, maxOutputTokens: CONFIG.MAX_OUTPUT_TOKENS }
+        });
 
-    // The GenAI client can return the generated text under various fields
-    // depending on SDK versions and wrappers. Attempt multiple extraction
-    // strategies to be robust to those differences.
-    let text: string | undefined = undefined;
-    try {
-      const anyResp: any = response;
-      text = anyResp.text || anyResp.outputText || anyResp.output?.[0]?.content || anyResp.result?.outputText || anyResp.result?.outputs?.[0]?.content?.text;
-      // older/newer shapes: candidates array or message/content nesting
-      if (!text) {
-        const cand = anyResp.candidates?.[0] || anyResp.result?.candidates?.[0];
-        if (cand) {
-          text = cand.text || cand.output || cand.content || cand.message?.content?.[0]?.text || cand.message?.content?.[0]?.text?.text;
+        const anyResp: any = resp;
+        const finish = anyResp.candidates?.[0]?.finishReason || anyResp.result?.candidates?.[0]?.finishReason;
+        let text = anyResp.text || anyResp.outputText || anyResp.output?.[0]?.content || anyResp.result?.outputText || anyResp.result?.outputs?.[0]?.content?.text;
+        if (!text) {
+          const cand = anyResp.candidates?.[0] || anyResp.result?.candidates?.[0];
+          if (cand) text = cand.text || cand.output || cand.content || cand.message?.content?.[0]?.text || cand.message?.content?.[0]?.text?.text;
         }
+        if (!text && anyResp.candidates && anyResp.candidates.length) text = anyResp.candidates.map((c: any) => c.text || JSON.stringify(c)).join('\n');
+
+        // If the model stopped due to MAX_TOKENS, attempt a single continuation
+        if (finish === 'MAX_TOKENS') {
+          try {
+            const cont = await ai.models.generateContent({
+              model: nodeModel,
+              contents: 'Continue the previous JSON output. Return only the remaining JSON text to complete the object, with no explanation.',
+              config: { temperature: 0.0, maxOutputTokens: 512 }
+            });
+            const a: any = cont;
+            let contText = a.text || a.outputText || a.output?.[0]?.content || a.result?.outputText || a.result?.outputs?.[0]?.content?.text;
+            if (!contText && a.candidates && a.candidates.length) contText = a.candidates.map((c: any) => c.text || JSON.stringify(c)).join('\n');
+            if (contText) text = String(text || '') + '\n' + String(contText);
+          } catch (e) {
+            // ignore continuation failure; we'll handle parsing below
+          }
+        }
+
+        const finishedAt = new Date();
+        return { response: resp, text: text || '', finishReason: finish, startedAt: startedAt.toISOString(), finishedAt: finishedAt.toISOString(), durationMs: finishedAt.getTime() - startedAt.getTime() };
+      } catch (err) {
+        const finishedAt = new Date();
+        return { response: err, text: '', finishReason: undefined, startedAt: startedAt.toISOString(), finishedAt: finishedAt.toISOString(), durationMs: finishedAt.getTime() - startedAt.getTime() };
       }
-      // fallback: sometimes grounding chunks or other fields contain useful textual representation
-      if (!text && anyResp.candidates && anyResp.candidates.length) {
-        text = anyResp.candidates.map((c: any) => c.text || JSON.stringify(c)).join('\n');
-      }
-    } catch (e) {
-      console.warn('Error extracting text from AI response shape', e);
-      text = undefined;
     }
 
-    if (!text) {
-      console.error('AI returned no text field; full response object:', JSON.stringify(response, null, 2));
-      // Return a safe failure object rather than throwing to keep the server stable
-      return {
+    // Build three focused prompts
+    const factPrompt = `
+You are given an Employer Fact Sheet. Return a compact JSON object (single line) with { "internalRecordValidation": { "recordFound": boolean, "accountNumber": string|null, "overdueBalance": number|null, "statusMatch": boolean|null, "concerns": string[] } }. Do NOT include extra text.
+${factSheetContext}
+`;
+
+    const policyPrompt = `
+Compare the APPLICATION (compact JSON) to the INTERNAL_RECORD below and the provided POLICY_TEXT. Return a compact JSON object (single line) with { "policyViolations": [{"field": string, "value": string, "policy": string|null, "clause": string|null, "recommendation": string|null}], "certificationAnalysis": { "totalWorkers": number|null, "certifiedWorkers": number|null, "complianceRatio": number|null, "meetsRequirement": boolean|null }, "recommendation": string, "summary": string }.
+APPLICATION: ${applicationJsonCompact}
+INTERNAL_RECORD: ${factSheetContext}
+POLICY_TEXT: ${policiesSnippet}
+`;
+
+    const webPrompt = `
+Search the public web for evidence about the company. Return a compact JSON object (single line) with { "webPresenceValidation": { "companyFound": boolean, "relevantIndustry": boolean, "searchSummary": string }, "sources": [{ "title": string, "uri": string }] }. Use the company identifiers: ${application.companyName}, address: ${application.address}, tradeName: ${application.wizardData?.firmTradeName || ''}.
+`;
+
+    // Run calls (fact -> policy & web). Web can run in parallel with policy after fact is available.
+    const factResp = await generateAndParse(factPrompt);
+    const factText = factResp.text || '';
+    const parsedFact = parseAIResponse(factText) || null;
+
+    const policyInputPrompt = `
+${policyPrompt}
+INTERNAL_RECORD_STRUCTURED: ${JSON.stringify(parsedFact || {})}
+`;
+
+    const [policyResp, webResp] = await Promise.all([
+      generateAndParse(policyInputPrompt),
+      generateAndParse(webPrompt)
+    ]);
+
+    const policyText = policyResp.text || '';
+    const webText = webResp.text || '';
+
+    const parsedPolicy = parseAIResponse(policyText) || null;
+    const parsedWeb = parseAIResponse(webText) || null;
+
+    // If all three failed to produce any parseable JSON, return fallback
+    if (!parsedFact && !parsedPolicy && !parsedWeb) {
+      try {
+        const fs = await import('fs');
+        const pathMod = await import('path');
+        const dir = pathMod.resolve(process.cwd(), 'tmp', 'ai-failures');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const ts = Date.now();
+        try { fs.writeFileSync(pathMod.join(dir, `multi-raw-${ts}.txt`), `FACT:\n${factText}\n\nPOLICY:\n${policyText}\n\nWEB:\n${webText}`, 'utf8'); } catch (e) { }
+        try { fs.writeFileSync(pathMod.join(dir, `multi-response-${ts}.json`), JSON.stringify({ factResp: factResp.response, policyResp: policyResp.response, webResp: webResp.response }, null, 2), 'utf8'); } catch (e) { }
+      } catch (e) { /* ignore */ }
+
+      return createFallbackAnalysis({
         riskScore: 'MEDIUM',
-        isTestAccount: false,
-        summary: 'AI returned no content. See debug for full response.',
-        internalRecordValidation: { recordFound: false, accountNumber: null, overdueBalance: null, statusMatch: null, concerns: [] },
-        geographicValidation: { addressExistsInBC: false, addressConflicts: [], verifiedLocation: null },
-        webPresenceValidation: { companyFound: false, relevantIndustry: false, searchSummary: '' },
-        certificationAnalysis: { totalWorkers: null, certifiedWorkers: null, complianceRatio: null, meetsRequirement: null },
-        concerns: ['AI provider returned an empty response.'],
-        policyViolations: [],
-        recommendation: 'MANUAL_REVIEW_REQUIRED',
-        requiredActions: [],
-        sources: [],
-        debug: { prompt: prompt, rawResponse: JSON.stringify(response) }
-      } as AIAnalysisResult;
+        summary: 'AI returned unparsable responses for all subtasks. See debug for raw output.',
+        concerns: ['AI response parsing failed for subtasks.'],
+        recommendation: 'REQUEST_INFO',
+        debugPrompt: prompt,
+        rawResponse: `FACT:${factText}\nPOLICY:${policyText}\nWEB:${webText}`
+      });
     }
-      // Helper: extract the first top-level JSON object from noisy text.
+
+    // Merge best-effort results into a single result object
+    let merged: any = {};
+    merged.internalRecordValidation = parsedFact?.internalRecordValidation || parsedFact?.internalRecordValidation || { recordFound: false, accountNumber: null, overdueBalance: null, statusMatch: null, concerns: [] };
+    merged.certificationAnalysis = parsedPolicy?.certificationAnalysis || { totalWorkers: null, certifiedWorkers: null, complianceRatio: null, meetsRequirement: null };
+    merged.policyViolations = parsedPolicy?.policyViolations || [];
+    merged.recommendation = parsedPolicy?.recommendation || 'MANUAL_REVIEW_REQUIRED';
+    merged.summary = parsedPolicy?.summary || parsedFact?.summary || 'Partial analysis — manual review recommended.';
+    merged.webPresenceValidation = parsedWeb?.webPresenceValidation || { companyFound: false, relevantIndustry: false, searchSummary: '' };
+    merged.sources = parsedWeb?.sources || parsedPolicy?.sources || [];
+
+    // Attach per-step debug (include the prompt used for each step)
+    const perStepDebug = {
+      fact: { prompt: factPrompt, raw: factText, finishReason: factResp.finishReason, parsed: parsedFact || null, startedAt: factResp.startedAt, finishedAt: factResp.finishedAt, durationMs: factResp.durationMs },
+      policy: { prompt: policyInputPrompt, raw: policyText, finishReason: policyResp.finishReason, parsed: parsedPolicy || null, startedAt: policyResp.startedAt, finishedAt: policyResp.finishedAt, durationMs: policyResp.durationMs },
+      web: { prompt: webPrompt, raw: webText, finishReason: webResp.finishReason, parsed: parsedWeb || null, startedAt: webResp.startedAt, finishedAt: webResp.finishedAt, durationMs: webResp.durationMs }
+    };
+
+    // Use merged as `result` for downstream normalization/validation
+    var response = { candidates: [{ groundingMetadata: { groundingChunks: [] } }] } as any; // placeholder for grounding
+    var text = policyText || factText || webText;
+      // JSON parsing/extraction refactor: modular strategies for clarity and testability
       function extractFirstJson(input: string): string | null {
         const start = input.indexOf('{');
         if (start === -1) return null;
@@ -463,35 +618,116 @@ END OF INSTRUCTIONS.
         return null;
       }
 
-      // Pre-sanitize: strip markdown fences, escape URL braces, remove duplicate JSON
-      let sanitizedTextForExtract = (text || '');
-      // Strip markdown code fences
-      sanitizedTextForExtract = sanitizedTextForExtract.replace(/```(?:json)?\s*/g, '');
-      // Escape braces in URLs to prevent them from breaking JSON structure detection
-      const urlRegex = /https?:\/\/[^\s"']+/g;
-      sanitizedTextForExtract = sanitizedTextForExtract.replace(urlRegex, (u) => u.replace(/\{/g, '%7B').replace(/\}/g, '%7D'));
+      function sanitizeForAttempt(s: string): string {
+        return s
+          .replace(/```(?:json)?/g, '')
+          .replace(/\r/g, '')
+          .replace(/[“”]/g, '"')
+          .replace(/,\s*([}\]])/g, '$1')
+          .replace(/}\s*\{/g, '}, {')
+          .replace(/}\s*"/g, '}, "')
+          .replace(/\]\s*\{/g, '], {')
+          .replace(/}\s*\]/g, '}]')
+          .replace(/\]\s*"/g, '], "');
+      }
 
-      // Extract the FIRST complete JSON object (ignores any duplicates/nesting)
-      const cleanedText = extractFirstJson(sanitizedTextForExtract);
-      
-      // If extraction failed, try a simple regex as fallback
-      if (!cleanedText) {
-        const match = sanitizedTextForExtract.match(/\{[\s\S]*\}/);
-        if (!match) {
-          console.error('No JSON found in AI response. Raw response:', text);
-          throw new Error('No JSON found in AI response. See debug.rawResponse for details.');
+      function parseCleanJSON(raw: string) {
+        try {
+          return JSON.parse(raw);
+        } catch (e) {
+          return null;
         }
       }
-      if (!cleanedText) {
-        console.error('No JSON found in AI response. Raw response:', text);
-        throw new Error('No JSON found in AI response. See debug.rawResponse for details.');
+
+      function parseExtractedJSON(raw: string) {
+        const pre = (raw || '').replace(/```(?:json)?\s*/g, '');
+        const first = extractFirstJson(pre);
+        if (!first) return null;
+        return parseCleanJSON(first) || null;
       }
 
-      let result: AIAnalysisResult;
+      function parseWithRepair(raw: string) {
+        try {
+          let candidate = (raw || '').replace(/```(?:json)?/g, '');
+          candidate = sanitizeForAttempt(candidate);
+          // Iteratively try truncating at last '}' if parse fails
+          for (let attempt = 0; attempt < 5 && candidate.length > 0; attempt++) {
+            try {
+              return JSON.parse(candidate);
+            } catch (e) {
+              const lastClose = candidate.lastIndexOf('}');
+              if (lastClose <= 0) break;
+              candidate = candidate.substring(0, lastClose + 1);
+              candidate = candidate.replace(/,\s*([}\]])/g, '$1');
+            }
+          }
+        } catch (e) {
+          // fall through
+        }
+        return null;
+      }
+
+      function parseLargestMatch(raw: string) {
+        const all = (raw || '').match(/\{[\s\S]*?\}/g) || [];
+        all.sort((a, b) => b.length - a.length);
+        for (const m of all) {
+          try {
+            const sanitized = sanitizeForAttempt(m);
+            const p = JSON.parse(sanitized);
+            return p;
+          } catch (e) {
+            // continue
+          }
+        }
+        return null;
+      }
+
+      function parseAIResponse(rawText: string) {
+        const strategies = [parseCleanJSON, parseExtractedJSON, parseWithRepair, parseLargestMatch];
+        for (const s of strategies) {
+          try {
+            const r = s(rawText);
+            if (r) return r;
+          } catch (e) {
+            console.warn('parse strategy error', e);
+          }
+        }
+        return null;
+      }
+
+      // Run strategies
+      let result: AIAnalysisResult | null = null;
+      const parsedCandidate = parseAIResponse(text || '');
+      if (!parsedCandidate) {
+        console.error('All JSON parsing strategies failed. Raw response:', text);
+        // Attempt to persist the raw response + full SDK response for offline inspection
+        try {
+          const fs = await import('fs');
+          const pathMod = await import('path');
+          const dir = pathMod.resolve(process.cwd(), 'tmp', 'ai-failures');
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          const ts = Date.now();
+          try { fs.writeFileSync(pathMod.join(dir, `raw-${ts}.txt`), String(text || ''), 'utf8'); } catch (e) { /* ignore */ }
+          try { fs.writeFileSync(pathMod.join(dir, `response-${ts}.json`), JSON.stringify(response || {}, null, 2), 'utf8'); } catch (e) { /* ignore */ }
+          console.error('Wrote unparsable AI response files to', dir);
+        } catch (e) {
+          console.error('Failed writing AI failure debug files', e);
+        }
+
+        return createFallbackAnalysis({
+          riskScore: 'MEDIUM',
+          summary: 'AI returned an unparsable response. See debug for raw output.',
+          concerns: ['AI response parsing failed.'],
+          recommendation: 'REQUEST_INFO',
+          debugPrompt: prompt,
+          rawResponse: text,
+          extraDebug: { perStepDebug }
+        });
+      }
+
+      // Normalize and coerce fields
       try {
-        // Try to parse JSON and coerce numeric fields where appropriate
-        const parsed = JSON.parse(cleanedText) as any;
-        // Basic normalization: ensure arrays and expected keys exist
+        const parsed = parsedCandidate as any;
         parsed.isTestAccount = !!parsed.isTestAccount;
         parsed.internalRecordValidation = parsed.internalRecordValidation || { recordFound: false, accountNumber: null, overdueBalance: null, statusMatch: null, concerns: [] };
         parsed.geographicValidation = parsed.geographicValidation || { addressExistsInBC: false, addressConflicts: [], verifiedLocation: null };
@@ -502,143 +738,79 @@ END OF INSTRUCTIONS.
         parsed.requiredActions = parsed.requiredActions || [];
         parsed.sources = parsed.sources || [];
         result = parsed as AIAnalysisResult;
-      } catch (parseError) {
-        console.warn('AI JSON parse failed on first candidate. Attempting recovery.', parseError?.message || parseError);
-        console.debug('Extracted text (first JSON candidate):', cleanedText);
-        console.debug('Full raw AI response:', text);
-
-        // Attempt fallback recovery strategies in order of non-destructiveness:
-        // 1) Try to repair the extracted JSON candidate by removing trailing commas
-        //    and iteratively truncating at the last closing brace to recover a
-        //    well-formed object when the model output was truncated.
-        // 2) If that fails, fall back to scanning all JSON-like substrings in the
-        //    raw response and parse the largest one that parses successfully.
-
-        let recovered: any = null;
+      } catch (e) {
+        console.error('Normalization after parse failed', e);
+        // Persist the failure details for offline debugging
         try {
-          let candidate = cleanedText || '';
-          // Normalize common issues: strip markdown fences, remove CR, normalize smart quotes
-          candidate = candidate.replace(/```(?:json)?/g, '');
-          candidate = candidate.replace(/\r/g, '');
-          candidate = candidate.replace(/[“”]/g, '"');
-          // Remove obvious trailing commas before } or ] which often break JSON
-          candidate = candidate.replace(/,\s*([}\]])/g, '$1');
-          // Insert missing commas between adjacent object literals ("}{" -> "}, {")
-          candidate = candidate.replace(/}\s*\{/g, '}, {');
-          // Additional heuristics to fix missing commas or boundaries inside arrays
-          candidate = candidate.replace(/}\s*"/g, '}, "');
-          candidate = candidate.replace(/\]\s*\{/g, '], {');
-          candidate = candidate.replace(/}\s*\]/g, '}]');
-          // Insert missing comma between a closing array and the next property
-          candidate = candidate.replace(/\]\s*"/g, '], "');
-
-          // Iteratively try to parse the candidate, truncating at the last '}'
-          // when parse errors (like Unterminated string / truncated output) occur.
-          while (candidate.length) {
-            try {
-              recovered = JSON.parse(candidate);
-              break;
-            } catch (e) {
-              const lastClose = candidate.lastIndexOf('}');
-              if (lastClose <= 0) break;
-              candidate = candidate.substring(0, lastClose + 1);
-              candidate = candidate.replace(/,\s*([}\]])/g, '$1');
-            }
-          }
-        } catch (e) {
-          // ignore repair errors and proceed to broader extraction
+          const fs = await import('fs');
+          const pathMod = await import('path');
+          const dir = pathMod.resolve(process.cwd(), 'tmp', 'ai-failures');
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          const ts = Date.now();
+          try { fs.writeFileSync(pathMod.join(dir, `normalize-error-${ts}.txt`), String(text || ''), 'utf8'); } catch (e) { /* ignore */ }
+          try { fs.writeFileSync(pathMod.join(dir, `normalize-response-${ts}.json`), JSON.stringify(response || {}, null, 2), 'utf8'); } catch (e) { /* ignore */ }
+          console.error('Wrote normalization-failure debug files to', dir);
+        } catch (werr) {
+          console.error('Failed writing normalization debug files', werr);
         }
 
-        // If repair-by-truncation didn't succeed, try the previous approach of
-        // scanning the entire raw response for JSON-like substrings and parse
-        // the largest valid one.
-        if (!recovered) {
-          const allMatches = (text || '').match(/\{[\s\S]*?\}/g) || [];
-          allMatches.sort((a, b) => b.length - a.length);
-          for (const m of allMatches) {
-            try {
-              // sanitize candidate before parse
-              const sanitized = (m || '')
-                .replace(/```(?:json)?/g, '')
-                .replace(/\r/g, '')
-                .replace(/[“”]/g, '"')
-                .replace(/,\s*([}\]])/g, '$1')
-                .replace(/}\s*\{/g, '}, {')
-                .replace(/}\s*"/g, '}, "')
-                .replace(/\]\s*\{/g, '], {')
-                .replace(/}\s*\]/g, '}]')
-                .replace(/\]\s*"/g, '], "');
-              const p = JSON.parse(sanitized);
-              recovered = p;
-              break;
-            } catch (e) {
-              // continue
-            }
-          }
-        }
-
-        if (recovered) {
-          console.info('Recovered JSON from alternate extraction.');
-          const parsed = recovered as any;
-          parsed.isTestAccount = !!parsed.isTestAccount;
-          parsed.internalRecordValidation = parsed.internalRecordValidation || { recordFound: false, accountNumber: null, overdueBalance: null, statusMatch: null, concerns: [] };
-          parsed.geographicValidation = parsed.geographicValidation || { addressExistsInBC: false, addressConflicts: [], verifiedLocation: null };
-          parsed.webPresenceValidation = parsed.webPresenceValidation || { companyFound: false, relevantIndustry: false, searchSummary: '' };
-          parsed.certificationAnalysis = parsed.certificationAnalysis || { totalWorkers: null, certifiedWorkers: null, complianceRatio: null, meetsRequirement: null };
-          parsed.concerns = parsed.concerns || [];
-          parsed.policyViolations = parsed.policyViolations || [];
-          parsed.requiredActions = parsed.requiredActions || [];
-          parsed.sources = parsed.sources || [];
-          result = parsed as AIAnalysisResult;
-        } else {
-          // As a last resort, return a safe failure object instead of throwing, to avoid crashing the server
-          console.error('Unable to recover valid JSON from AI response. Returning fallback analysis with debug info.');
-          return {
-            riskScore: 'MEDIUM',
-            isTestAccount: false,
-            summary: 'AI returned an unparsable response. See debug for raw output.',
-            internalRecordValidation: { recordFound: false, accountNumber: null, overdueBalance: null, statusMatch: null, concerns: [] },
-            geographicValidation: { addressExistsInBC: false, addressConflicts: [], verifiedLocation: null },
-            webPresenceValidation: { companyFound: false, relevantIndustry: false, searchSummary: '' },
-            certificationAnalysis: { totalWorkers: null, certifiedWorkers: null, complianceRatio: null, meetsRequirement: null },
-            concerns: ['AI response parsing failed.'],
-            policyViolations: [],
-            recommendation: 'REQUEST_INFO',
-            requiredActions: [],
-            sources: [],
-            debug: {
-              prompt: prompt,
-              rawResponse: text
-            }
-          } as AIAnalysisResult;
-        }
+        return createFallbackAnalysis({
+          riskScore: 'MEDIUM',
+          summary: 'AI returned an unparsable response. See debug for raw output.',
+          concerns: ['AI response parsing failed.'],
+          recommendation: 'REQUEST_INFO',
+          debugPrompt: prompt,
+          rawResponse: text
+        });
       }
+
+      // Ensure required top-level fields exist with safe defaults before schema validation
+      (function ensureRequiredTopLevel(obj: any) {
+        try {
+          if (!obj) return;
+          const allowedRisk = ['LOW', 'MEDIUM', 'HIGH', 'INVALID'];
+          if (!obj.riskScore || !allowedRisk.includes(obj.riskScore)) obj.riskScore = 'MEDIUM';
+          if (!obj.summary || typeof obj.summary !== 'string') obj.summary = 'Partial AI output — manual review recommended.';
+          if (!obj.recommendation || typeof obj.recommendation !== 'string') obj.recommendation = 'MANUAL_REVIEW_REQUIRED';
+          obj.concerns = obj.concerns || [];
+          obj.requiredActions = obj.requiredActions || [];
+          obj.policyViolations = obj.policyViolations || [];
+          obj.sources = obj.sources || [];
+        } catch (e) {
+          // ignore
+        }
+      })(result as any);
 
     // Validate against the strict schema. If validation fails, return a
     // safe fallback and include AJV errors in `debug` for inspection.
     try {
       const valid = validateAiAnalysis(result as any);
       if (!valid) {
-        console.error('AI output failed schema validation:', (validateAiAnalysis as any).errors);
-        return {
-          riskScore: 'MEDIUM',
+        const validationErrors = (validateAiAnalysis as any).errors;
+        console.error('AI output failed schema validation:', validationErrors);
+        // Synthesize a valid AIAnalysisResult by preserving any useful fields
+        // and filling missing required properties with safe defaults so callers
+        // receive a predictable structure.
+        return createFallbackAnalysis({
+          riskScore: (result && (result as any).riskScore) || 'MEDIUM',
           isTestAccount: !!result?.isTestAccount,
-          summary: 'AI returned JSON that did not match the expected schema. Manual review required.',
-          internalRecordValidation: result?.internalRecordValidation || { recordFound: false, accountNumber: null, overdueBalance: null, statusMatch: null, concerns: [] },
-          geographicValidation: result?.geographicValidation || { addressExistsInBC: false, addressConflicts: [], verifiedLocation: null },
-          webPresenceValidation: result?.webPresenceValidation || { companyFound: false, relevantIndustry: false, searchSummary: '' },
-          certificationAnalysis: result?.certificationAnalysis || { totalWorkers: null, certifiedWorkers: null, complianceRatio: null, meetsRequirement: null },
+          summary: (result && (result as any).summary) || 'Partial AI output — manual review required.',
           concerns: result?.concerns || ['AI output failed schema validation.'],
-          policyViolations: result?.policyViolations || [],
           recommendation: 'MANUAL_REVIEW_REQUIRED',
-          requiredActions: result?.requiredActions || [],
-          sources: result?.sources || [],
-          debug: {
-            prompt: prompt,
-            rawResponse: text,
-            validationErrors: (validateAiAnalysis as any).errors
+          debugPrompt: prompt,
+          rawResponse: text,
+          extraDebug: { validationErrors, perStepDebug },
+          // Preserve best-effort fields so UI can display any recovered data
+          preserve: {
+            internalRecordValidation: result?.internalRecordValidation,
+            geographicValidation: result?.geographicValidation,
+            webPresenceValidation: result?.webPresenceValidation,
+            certificationAnalysis: result?.certificationAnalysis,
+            policyViolations: result?.policyViolations,
+            requiredActions: result?.requiredActions,
+            sources: result?.sources
           }
-        } as AIAnalysisResult;
+        });
       }
     } catch (e) {
       console.warn('Schema validation threw error', e);
@@ -650,14 +822,17 @@ END OF INSTRUCTIONS.
       .map((chunk: any) => chunk.web ? { title: chunk.web.title, uri: chunk.web.uri } : null)
       .filter((s: any) => s !== null) as { title: string; uri: string }[];
 
-    // Add sources and debug info to the result object
+    // Add sources and debug info to the result object (include per-step debug)
     return {
       ...result,
       sources,
-      debug: {
-        prompt: prompt,
-        rawResponse: text
-      }
+      debug: Object.assign(
+        {
+          prompt: prompt,
+          rawResponse: text
+        },
+        perStepDebug ? { perStepDebug } : {}
+      )
     };
 
   } catch (error) {

@@ -5,9 +5,9 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
 
-    // Prefer explicit server-side keys (GEMINI_API_KEY or API_KEY),
-    // fall back to VITE_API_KEY if present for local convenience.
-    const serverApiKey = env.GEMINI_API_KEY || env.API_KEY || env.VITE_API_KEY || env.VITE_API_KEY;
+    // Prefer explicit server-side keys (GEMINI_API_KEY or API_KEY).
+    // Do NOT fall back to VITE_API_KEY; keys must be set in .env.local as GEMINI_API_KEY.
+    const serverApiKey = env.GEMINI_API_KEY || env.API_KEY;
 
     return {
       server: {
@@ -31,16 +31,15 @@ export default defineConfig(({ mode }) => {
                   return;
                 }
 
-                try {
-                  // Dynamically require the GenAI client to avoid startup errors
-                  // if the package is not available or not compatible with this runtime.
-                  let GoogleGenAI: any = null;
                   try {
-                    // eslint-disable-next-line @typescript-eslint/no-var-requires
-                    GoogleGenAI = (require('@google/genai') as any).GoogleGenAI || require('@google/genai');
-                  } catch (loadErr) {
-                    GoogleGenAI = null;
-                  }
+                    // Dynamically import the GenAI client (ESM-safe).
+                    let GoogleGenAI: any = null;
+                    try {
+                      const mod = await import('@google/genai');
+                      GoogleGenAI = (mod as any)?.GoogleGenAI || (mod as any) || null;
+                    } catch (loadErr) {
+                      GoogleGenAI = null;
+                    }
 
                   if (!GoogleGenAI) {
                     res.statusCode = 200;
@@ -155,11 +154,11 @@ export default defineConfig(({ mode }) => {
   `;
 
                   // Call Gemini from the dev server (server-side)
-                  // Dynamically require the GenAI client for the dev server handler
+                  // Dynamically import the GenAI client for the dev server handler
                   let GoogleGenAI: any = null;
                   try {
-                    // eslint-disable-next-line @typescript-eslint/no-var-requires
-                    GoogleGenAI = (require('@google/genai') as any).GoogleGenAI || require('@google/genai');
+                    const mod = await import('@google/genai');
+                    GoogleGenAI = (mod as any)?.GoogleGenAI || (mod as any) || null;
                   } catch (e) {
                     GoogleGenAI = null;
                   }
