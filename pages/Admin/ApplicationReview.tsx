@@ -309,54 +309,21 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                     </div>
                   </div>
 
-                  {/* 2) Policy Violations */}
-                  <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
-                    <h4 className="text-sm font-semibold text-slate-200 mb-2">Policy Violations</h4>
-                    {analysisResult.policyViolations && analysisResult.policyViolations.length > 0 ? (
-                      <ul className="space-y-3 text-sm text-slate-300">
-                        {analysisResult.policyViolations.map((v, i) => (
-                          <li key={i} className="bg-red-900/8 border border-red-900/20 p-3 rounded">
-                            <div className="text-sm font-semibold text-red-400">{v.field} — <span className="text-slate-300 font-normal">{v.value}</span></div>
-                            <div className="text-xs text-slate-400 mt-1">Policy: {v.policy}</div>
-                            {v.clause && (
-                              <blockquote className="mt-2 pl-3 border-l-2 border-slate-700 text-slate-300 text-sm">{v.clause}</blockquote>
-                            )}
-                            {v.recommendation && (
-                              <div className="mt-2 text-xs text-yellow-200 bg-yellow-900/8 border border-yellow-800/20 rounded p-2">{v.recommendation}</div>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="text-sm text-green-300">No policy violations detected.</div>
-                    )}
+                  {/* 2) Policy Violations - PLACEHOLDER (Step 2 disabled) */}
+                  <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50 opacity-50">
+                    <h4 className="text-sm font-semibold text-slate-200 mb-2">Policy Violations [ANALYSIS DISABLED]</h4>
+                    <div className="text-sm text-slate-400 italic">
+                      <p>Policy analysis step is currently disabled for debugging.</p>
+                      <p className="mt-2 text-xs">This section will analyze policy violations and certification requirements once re-enabled.</p>
+                    </div>
                   </div>
 
-                  {/* 3) Web Profile Summary */}
-                  <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
-                    <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary</h4>
-                    <div className="text-sm text-slate-300">
-                      {analysisResult.webPresenceSummary ? (
-                        <p>{analysisResult.webPresenceSummary}</p>
-                      ) : (
-                        analysisResult.debug?.perStepDebug?.web?.parsed ? (
-                          <pre className="whitespace-pre-wrap">{JSON.stringify(analysisResult.debug.perStepDebug.web.parsed, null, 2)}</pre>
-                        ) : (
-                          <p className="text-slate-500">No web profile summary available.</p>
-                        )
-                      )}
-                      {analysisResult.sources && analysisResult.sources.length > 0 && (
-                        <div className="mt-3">
-                          <div className="text-[11px] text-slate-400 uppercase mb-1">Sources</div>
-                          <ul className="space-y-1 text-[13px]">
-                            {analysisResult.sources.map((s, i) => (
-                              <li key={i}>
-                                <a href={s.uri} target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">{s.title}</a>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                  {/* 3) Web Profile Summary - PLACEHOLDER (Step 3 disabled) */}
+                  <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50 opacity-50">
+                    <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary [ANALYSIS DISABLED]</h4>
+                    <div className="text-sm text-slate-400 italic">
+                      <p>Web search step is currently disabled for debugging.</p>
+                      <p className="mt-2 text-xs">This section will perform web searches for company information once re-enabled.</p>
                     </div>
                   </div>
                 </div>
@@ -372,9 +339,17 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                         </button>
                     )}
                     <button 
-                        onClick={() => {
+                        onClick={async () => {
+                            // Clear in-memory state
                             setAnalysisResult(null);
                             setShowDebug(false);
+                            // Clear JSON file persistence
+                            try {
+                              const { deleteData } = await import('../../services/storageService');
+                              await deleteData('adminAnalysis');
+                            } catch (error) {
+                              console.error('Failed to clear saved analysis:', error);
+                            }
                         }}
                         className="text-xs text-slate-500 hover:text-white underline transition-colors"
                     >
@@ -384,6 +359,9 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
 
                   {showDebug && analysisResult.debug && (
                     <div className="mt-4 p-4 bg-black rounded border border-slate-700 font-mono text-[11px] text-slate-300 overflow-x-auto shadow-inner animate-fadeIn">
+                        <div className="mb-4 pb-3 border-b border-slate-800">
+                            <div className="text-xs text-slate-500">Executed at: <strong className="text-slate-300">{analysisResult.executedAt || (analysisResult.debug?.executedAt ? analysisResult.debug.executedAt : 'unknown')}</strong></div>
+                        </div>
                         <div className="mb-6">
                             <strong className="text-green-400 block mb-2 border-b border-slate-800 pb-1">PROMPT(S) SENT TO GEMINI:</strong>
                             {analysisResult.debug.perStepDebug ? (

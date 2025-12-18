@@ -148,6 +148,54 @@ app.delete('/api/fact-sheets/:filename', (req, res) => {
   res.json({ message: 'Fact sheet deleted successfully' });
 });
 
+// Data Storage Endpoints (for JSON persistence via API)
+app.get('/api/data/:key', (req, res) => {
+  const { key } = req.params;
+  const filePath = getFilePath(key);
+  
+  if (!fs.existsSync(filePath)) {
+    return res.json(null);
+  }
+  
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    res.json(JSON.parse(content));
+  } catch (err) {
+    console.error(`Error reading data file (${key}):`, err);
+    res.status(500).json({ error: 'Failed to read data' });
+  }
+});
+
+app.post('/api/data/:key', (req, res) => {
+  const { key } = req.params;
+  const { data } = req.body;
+  const filePath = getFilePath(key);
+  
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    res.json({ success: true, message: 'Data saved successfully' });
+  } catch (err) {
+    console.error(`Error writing data file (${key}):`, err);
+    res.status(500).json({ error: 'Failed to save data' });
+  }
+});
+
+app.delete('/api/data/:key', (req, res) => {
+  const { key } = req.params;
+  const filePath = getFilePath(key);
+  
+  if (fs.existsSync(filePath)) {
+    try {
+      fs.unlinkSync(filePath);
+    } catch (err) {
+      console.error(`Error deleting data file (${key}):`, err);
+      return res.status(500).json({ error: 'Failed to delete data' });
+    }
+  }
+  
+  res.json({ success: true, message: 'Data deleted successfully' });
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });

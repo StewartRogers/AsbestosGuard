@@ -341,109 +341,6 @@ export const analyzeApplication = async (
     ? policiesText.slice(0, MAX_POLICIES_CHARS) + '\n---TRUNCATED---'
     : policiesText || '';
 
-  const prompt = `
-ROLE & CONTEXT:
-You are a Regulatory Risk Analysis Engine for WorkSafeBC (Asbestos Licensing). Your goal is to assess risk, identify policy violations against WorkSafeBC licensing expectations (certification ratios, valid BC addresses, account standing), and provide a structured JSON report.
-
-INPUT DATA:
-- INTERNAL_RECORD (Employer Fact Sheet):
-${factSheetContext}
-
-- APPLICATION_DATA:
-${applicationJsonCompact}
-
-- POLICY_TEXT:
-${policiesSnippet}
-
-ANALYSIS FRAMEWORK & RULES:
-1) Data Reconciliation Rules
-  - Priority: 'wizardData.firmAddress' > 'address' field (wizard is more recent). If addresses conflict, flag as HIGH risk and include both values in 'geographicValidation.addressConflicts'.
-  - If any field contains TEST/DEMO or fictional locations (Shelbyville, Springfield), or placeholder phone patterns (e.g., 555-0123) or account numbers starting with 99999, mark isTestAccount=true and set riskScore to 'INVALID'.
-
-2) Risk Scoring Criteria (apply the highest triggered rule):
-   - CRITICAL / INVALID: Test account indicators, discovered fabricated data, or automated detection of clearly fictional values.
-  - HIGH: No internal record found OR overdueBalance > ${CONFIG.OVERDUE_BALANCE_THRESHOLD} OR verified non-BC address OR conflicting addresses OR enforcement actions recorded OR missing required certifications.
-  - MEDIUM: Record found with minor past violations, insurance expiry < ${CONFIG.INSURANCE_EXPIRY_THRESHOLD_MONTHS} months, certification ratio < ${Math.floor(CONFIG.CERTIFICATION_REQUIREMENT*100)}% but not zero.
-   - LOW: Record found, no overdue balance, address in BC, certification ratio meets requirement.
-
-3) Geographic Boundaries:
-  - Valid addresses must be within British Columbia, Canada. Verify that the provided address resolves to a BC location. If address is outside BC or cannot be located, set 'geographicValidation.addressExistsInBC=false'.
-
-4) Certification Requirement:
-  - All workers performing abatement must be certified. Required compliance ratio = ${CONFIG.CERTIFICATION_REQUIREMENT} (100%). Calculate 'complianceRatio = certifiedWorkers / totalWorkers' and set 'meetsRequirement' accordingly.
-
-5) Web Search Protocol (limited, document what you searched):
-   1. "[Company Name] [City] BC asbestos"
-   2. "[Company Name] [Address] British Columbia"
-   3. "[Trade Name] asbestos removal BC"
-   4. Check up to 4 queries; stop if you find authoritative evidence.
-   - Timeline: Consider reviews/complaints from the past 3 years.
-
-6) Priority Flagging (Severity):
-   - CRITICAL (INVALID_APPLICATION): No internal record + fabricated data.
-  - HIGH (REJECT): Overdue balance > $${CONFIG.OVERDUE_BALANCE_THRESHOLD}, fake/non-BC address, test account, outstanding enforcement actions.
-  - MEDIUM (REQUEST_INFO): Minor past violations, expiring insurance < ${CONFIG.INSURANCE_EXPIRY_THRESHOLD_MONTHS} months, certification ratio issues.
-   - LOW (APPROVE): Clear internal match, certifications OK, no adverse web evidence.
-
-OUTPUT REQUIREMENTS (Strict JSON ONLY):
-You MUST return ONLY a raw JSON object on a single line. Do NOT wrap it in markdown code fences (\`\`\`json). Do NOT include any explanatory text before or after the JSON. The first character of your response must be { and the last character must be }.
-
-{
-  "riskScore": "LOW" | "MEDIUM" | "HIGH" | "INVALID",
-  "isTestAccount": boolean,
-  "summary": string,
-  "internalRecordValidation": {
-    "recordFound": boolean,
-    "accountNumber": string | null,
-    "overdueBalance": number | null,
-    "statusMatch": boolean | null,
-    "concerns": string[]
-  },
-  "geographicValidation": {
-    "addressExistsInBC": boolean,
-    "addressConflicts": string[],
-    "verifiedLocation": string | null
-  },
-  "webPresenceValidation": {
-    "companyFound": boolean,
-    "relevantIndustry": boolean,
-    "searchSummary": string
-  },
-  "certificationAnalysis": {
-    "totalWorkers": number | null,
-    "certifiedWorkers": number | null,
-    "complianceRatio": number | null,
-    "meetsRequirement": boolean | null
-  },
-  "concerns": string[],
-  "policyViolations": [
-    { "field": string, "value": string, "policy": string | null, "clause": string | null, "recommendation": string | null }
-  ],
-  "recommendation": "APPROVE" | "REJECT" | "REQUEST_INFO" | "INVALID_APPLICATION",
-  "requiredActions": string[],
-  "sources": [ { "title": string, "uri": string } ],
-  "debug": { "prompt": string, "rawResponse": string }
-}
-
-EXTRA GUIDANCE:
-- If policy text (WorkSafeBC doc content) is provided in the input, reference exact clauses in 'policyViolations.clause' when applicable.
-- If no policy text is provided, apply licensing expectations described above (certification ratio, BC address, account standing) and explain which rule was used in 'concerns' and 'policyViolations.policy' fields.
-
-EXAMPLES:
-1) HIGH RISK:
-  - Input: No internal record + overdueBalance 1000
-  - Expected: "riskScore":"HIGH", "recommendation":"REJECT", concerns includes 'No internal record' and 'overdue balance $1000'
-
-2) MEDIUM RISK:
-   - Input: Record found, minor past violation, certification ratio 0.9
-   - Expected: "riskScore":"MEDIUM", "recommendation":"REQUEST_INFO"
-
-WEB SEARCH NOTES:
-Return 'sources' as an array of {title, uri} for any web evidence you cite.
-
--- (POLICIES_SNIPPET may be truncated in this prompt to avoid exceeding model context window.)
-`;
-
   try {
     // Dynamically import the GenAI client only on the server to avoid bundling
     // Node modules into the client-side bundle which breaks Vite/esbuild.
@@ -505,63 +402,122 @@ Return 'sources' as an array of {title, uri} for any web evidence you cite.
       }
     }
 
-    // Build three focused prompts
+    // ============================================================
+    // SINGLE STEP: Fact Sheet Validation Only
+    // (Policy Violations and Web Search are disabled for debugging)
+    // ============================================================
     const factPrompt = `
-You are given an Employer Fact Sheet. Return a compact JSON object (single line) with { "internalRecordValidation": { "recordFound": boolean, "accountNumber": string|null, "overdueBalance": number|null, "statusMatch": boolean|null, "concerns": string[] } }. Do NOT include extra text.
+ROLE: You are a Regulatory Compliance Analyst for WorkSafeBC.
+
+TASK: Validate the application against the internal Employer Fact Sheet record.
+
+INTERNAL_RECORD (Fact Sheet):
 ${factSheetContext}
+
+APPLICATION_DATA:
+${applicationJsonCompact}
+
+ANALYSIS REQUIREMENTS:
+1. Check if the applicant's firm exists in the internal database
+2. If found, verify the account number matches and check for financial non-compliance (overdue balances)
+3. If not found, flag as high-risk unknown entity
+4. Identify any data discrepancies between application and fact sheet
+5. Determine overall record validation status
+
+OUTPUT (Strict JSON on single line):
+Return ONLY a JSON object with NO explanatory text:
+{
+  "riskScore": "LOW" | "MEDIUM" | "HIGH",
+  "isTestAccount": boolean,
+  "summary": "Brief assessment of fact sheet validation",
+  "internalRecordValidation": {
+    "recordFound": boolean,
+    "accountNumber": string | null,
+    "overdueBalance": number | null,
+    "statusMatch": boolean | null,
+    "concerns": string[]
+  },
+  "concerns": ["List of identified concerns..."],
+  "recommendation": "APPROVE" | "REJECT" | "REQUEST_INFO"
+}
 `;
 
-    const policyPrompt = `
+    // ============================================
+    // SEQUENTIAL TASK EXECUTION (ONE AT A TIME)
+    // ============================================
+    // Task 1 executes first. Only if it succeeds do we proceed to Task 2.
+    // Only if Task 2 succeeds do we proceed to Task 3.
+    // ============================================
+
+    // ============================================
+    // TASK 1: Fact Sheet Analysis (ALWAYS RUNS)
+    // ============================================
+    console.log('=== TASK 1: Fact Sheet Analysis - STARTING ===');
+    const factResp = await generateAndParse(factPrompt);
+    const factText = factResp.text || '';
+    const parsedFact = parseAIResponse(factText) || null;
+    console.log('=== TASK 1: Fact Sheet Analysis - COMPLETE ===');
+
+    // Initialize Task 2 & 3 variables
+    let policyText = '';
+    let parsedPolicy = null;
+    let webText = '';
+    let parsedWeb = null;
+
+    // ============================================
+    // TASK 2: Policy Analysis (RUNS ONLY IF TASK 1 SUCCEEDS)
+    // ============================================
+    if (parsedFact) {
+      console.log('=== TASK 2: Policy Analysis - STARTING (Task 1 succeeded) ===');
+      const policyInputPrompt = `
 Compare the APPLICATION (compact JSON) to the INTERNAL_RECORD below and the provided POLICY_TEXT. Return a compact JSON object (single line) with { "policyViolations": [{"field": string, "value": string, "policy": string|null, "clause": string|null, "recommendation": string|null}], "certificationAnalysis": { "totalWorkers": number|null, "certifiedWorkers": number|null, "complianceRatio": number|null, "meetsRequirement": boolean|null }, "recommendation": string, "summary": string }.
 APPLICATION: ${applicationJsonCompact}
 INTERNAL_RECORD: ${factSheetContext}
 POLICY_TEXT: ${policiesSnippet}
 `;
+      const policyResp = await generateAndParse(policyInputPrompt);
+      policyText = policyResp.text || '';
+      parsedPolicy = parseAIResponse(policyText) || null;
+      console.log('=== TASK 2: Policy Analysis - COMPLETE ===');
 
-    const webPrompt = `
+      // ============================================
+      // TASK 3: Web Search (RUNS ONLY IF TASK 2 SUCCEEDS)
+      // ============================================
+      if (parsedPolicy) {
+        console.log('=== TASK 3: Web Search - STARTING (Task 2 succeeded) ===');
+        const webPrompt = `
 Search the public web for evidence about the company. Return a compact JSON object (single line) with { "webPresenceValidation": { "companyFound": boolean, "relevantIndustry": boolean, "searchSummary": string }, "sources": [{ "title": string, "uri": string }] }. Use the company identifiers: ${application.companyName}, address: ${application.address}, tradeName: ${application.wizardData?.firmTradeName || ''}.
 `;
+        const webResp = await generateAndParse(webPrompt);
+        webText = webResp.text || '';
+        parsedWeb = parseAIResponse(webText) || null;
+        console.log('=== TASK 3: Web Search - COMPLETE ===');
+      } else {
+        console.log('=== TASK 3: Web Search - SKIPPED (Task 2 failed) ===');
+      }
+    } else {
+      console.log('=== TASK 2 & TASK 3: SKIPPED (Task 1 failed) ===');
+    }
 
-    // Run calls (fact -> policy & web). Web can run in parallel with policy after fact is available.
-    const factResp = await generateAndParse(factPrompt);
-    const factText = factResp.text || '';
-    const parsedFact = parseAIResponse(factText) || null;
-
-    const policyInputPrompt = `
-${policyPrompt}
-INTERNAL_RECORD_STRUCTURED: ${JSON.stringify(parsedFact || {})}
-`;
-
-    const [policyResp, webResp] = await Promise.all([
-      generateAndParse(policyInputPrompt),
-      generateAndParse(webPrompt)
-    ]);
-
-    const policyText = policyResp.text || '';
-    const webText = webResp.text || '';
-
-    const parsedPolicy = parseAIResponse(policyText) || null;
-    const parsedWeb = parseAIResponse(webText) || null;
-
-    // If all three failed to produce any parseable JSON, return fallback
-    if (!parsedFact && !parsedPolicy && !parsedWeb) {
+    // If fact sheet analysis failed to produce any parseable JSON, return fallback
+    if (!parsedFact) {
       try {
         const fs = await import('fs');
         const pathMod = await import('path');
         const dir = pathMod.resolve(process.cwd(), 'tmp', 'ai-failures');
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         const ts = Date.now();
-        try { fs.writeFileSync(pathMod.join(dir, `multi-raw-${ts}.txt`), `FACT:\n${factText}\n\nPOLICY:\n${policyText}\n\nWEB:\n${webText}`, 'utf8'); } catch (e) { }
-        try { fs.writeFileSync(pathMod.join(dir, `multi-response-${ts}.json`), JSON.stringify({ factResp: factResp.response, policyResp: policyResp.response, webResp: webResp.response }, null, 2), 'utf8'); } catch (e) { }
+        try { fs.writeFileSync(pathMod.join(dir, `fact-raw-${ts}.txt`), `FACT:\n${factText}`, 'utf8'); } catch (e) { }
+        try { fs.writeFileSync(pathMod.join(dir, `fact-response-${ts}.json`), JSON.stringify({ factResp: factResp.response }, null, 2), 'utf8'); } catch (e) { }
       } catch (e) { /* ignore */ }
 
       return createFallbackAnalysis({
         riskScore: 'MEDIUM',
-        summary: 'AI returned unparsable responses for all subtasks. See debug for raw output.',
-        concerns: ['AI response parsing failed for subtasks.'],
+        summary: 'AI returned unparsable response for fact sheet analysis. See debug for raw output.',
+        concerns: ['AI response parsing failed for fact sheet analysis.'],
         recommendation: 'REQUEST_INFO',
-        debugPrompt: prompt,
-        rawResponse: `FACT:${factText}\nPOLICY:${policyText}\nWEB:${webText}`
+        debugPrompt: factPrompt,
+        rawResponse: factText
       });
     }
 
@@ -575,11 +531,10 @@ INTERNAL_RECORD_STRUCTURED: ${JSON.stringify(parsedFact || {})}
     merged.webPresenceValidation = parsedWeb?.webPresenceValidation || { companyFound: false, relevantIndustry: false, searchSummary: '' };
     merged.sources = parsedWeb?.sources || parsedPolicy?.sources || [];
 
-    // Attach per-step debug (include the prompt used for each step)
+    // Attach per-step debug (FACT STEP ONLY)
+    // Note: Steps 2 (policy) and 3 (web) are disabled, so only fact debug is included
     const perStepDebug = {
-      fact: { prompt: factPrompt, raw: factText, finishReason: factResp.finishReason, parsed: parsedFact || null, startedAt: factResp.startedAt, finishedAt: factResp.finishedAt, durationMs: factResp.durationMs },
-      policy: { prompt: policyInputPrompt, raw: policyText, finishReason: policyResp.finishReason, parsed: parsedPolicy || null, startedAt: policyResp.startedAt, finishedAt: policyResp.finishedAt, durationMs: policyResp.durationMs },
-      web: { prompt: webPrompt, raw: webText, finishReason: webResp.finishReason, parsed: parsedWeb || null, startedAt: webResp.startedAt, finishedAt: webResp.finishedAt, durationMs: webResp.durationMs }
+      fact: { prompt: factPrompt, raw: factText, finishReason: factResp.finishReason, parsed: parsedFact || null, startedAt: factResp.startedAt, finishedAt: factResp.finishedAt, durationMs: factResp.durationMs }
     };
 
     // Use merged as `result` for downstream normalization/validation
@@ -759,7 +714,7 @@ INTERNAL_RECORD_STRUCTURED: ${JSON.stringify(parsedFact || {})}
           summary: 'AI returned an unparsable response. See debug for raw output.',
           concerns: ['AI response parsing failed.'],
           recommendation: 'REQUEST_INFO',
-          debugPrompt: prompt,
+          debugPrompt: factPrompt,
           rawResponse: text
         });
       }
@@ -797,8 +752,8 @@ INTERNAL_RECORD_STRUCTURED: ${JSON.stringify(parsedFact || {})}
           summary: (result && (result as any).summary) || 'Partial AI output — manual review required.',
           concerns: result?.concerns || ['AI output failed schema validation.'],
           recommendation: 'MANUAL_REVIEW_REQUIRED',
-          debugPrompt: prompt,
-          rawResponse: text,
+          debugPrompt: factPrompt,
+          rawResponse: factText,
           extraDebug: { validationErrors, perStepDebug },
           // Preserve best-effort fields so UI can display any recovered data
           preserve: {
@@ -823,13 +778,16 @@ INTERNAL_RECORD_STRUCTURED: ${JSON.stringify(parsedFact || {})}
       .filter((s: any) => s !== null) as { title: string; uri: string }[];
 
     // Add sources and debug info to the result object (include per-step debug)
+    const executionTimestamp = new Date().toISOString();
     return {
       ...result,
       sources,
+      executedAt: executionTimestamp,
       debug: Object.assign(
         {
-          prompt: prompt,
-          rawResponse: text
+          prompt: factPrompt,
+          rawResponse: text,
+          executedAt: executionTimestamp
         },
         perStepDebug ? { perStepDebug } : {}
       )
@@ -837,6 +795,7 @@ INTERNAL_RECORD_STRUCTURED: ${JSON.stringify(parsedFact || {})}
 
   } catch (error) {
     console.error("AI Analysis Failed:", error);
+    const executionTimestamp = new Date().toISOString();
     return {
       riskScore: 'MEDIUM',
       isTestAccount: false,
@@ -852,9 +811,11 @@ INTERNAL_RECORD_STRUCTURED: ${JSON.stringify(parsedFact || {})}
       factSheetSummary: "Comparison unavailable due to error.",
       webPresenceSummary: "Analysis failed.",
       sources: [],
+      executedAt: executionTimestamp,
       debug: {
-        prompt: prompt, // Return the prompt even if call fails, for debugging
-        rawResponse: error instanceof Error ? error.message : "Unknown error"
+        prompt: factPrompt,
+        rawResponse: error instanceof Error ? error.message : "Unknown error",
+        executedAt: executionTimestamp
       }
     } as AIAnalysisResult;
   }
