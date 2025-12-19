@@ -443,63 +443,113 @@ Return ONLY a JSON object with NO explanatory text:
 `;
 
     // ============================================
-    // SEQUENTIAL TASK EXECUTION (ONE AT A TIME)
+    // PARALLEL AGENT EXECUTION (THREE INDEPENDENT AGENTS)
     // ============================================
-    // Task 1 executes first. Only if it succeeds do we proceed to Task 2.
-    // Only if Task 2 succeeds do we proceed to Task 3.
+    // All three agents run concurrently for faster results.
+    // Each agent can succeed or fail independently.
     // ============================================
 
-    // ============================================
-    // TASK 1: Fact Sheet Analysis (ALWAYS RUNS)
-    // ============================================
-    console.log('=== TASK 1: Fact Sheet Analysis - STARTING ===');
-    const factResp = await generateAndParse(factPrompt);
-    const factText = factResp.text || '';
-    const parsedFact = parseAIResponse(factText) || null;
-    console.log('=== TASK 1: Fact Sheet Analysis - COMPLETE ===');
+    console.log('=== LAUNCHING THREE PARALLEL AI AGENTS ===');
 
-    // Initialize Task 2 & 3 variables
-    let policyText = '';
-    let parsedPolicy = null;
-    let webText = '';
-    let parsedWeb = null;
+    // Define Agent 2: Policy Compliance Analyzer
+    const policyInputPrompt = `
+ROLE: You are a Policy Compliance Analyst for WorkSafeBC.
 
-    // ============================================
-    // TASK 2: Policy Analysis (RUNS ONLY IF TASK 1 SUCCEEDS)
-    // ============================================
-    if (parsedFact) {
-      console.log('=== TASK 2: Policy Analysis - STARTING (Task 1 succeeded) ===');
-      const policyInputPrompt = `
-Compare the APPLICATION (compact JSON) to the INTERNAL_RECORD below and the provided POLICY_TEXT. Return a compact JSON object (single line) with { "policyViolations": [{"field": string, "value": string, "policy": string|null, "clause": string|null, "recommendation": string|null}], "certificationAnalysis": { "totalWorkers": number|null, "certifiedWorkers": number|null, "complianceRatio": number|null, "meetsRequirement": boolean|null }, "recommendation": string, "summary": string }.
+TASK: Analyze the application for policy violations and certification compliance.
+
 APPLICATION: ${applicationJsonCompact}
 INTERNAL_RECORD: ${factSheetContext}
 POLICY_TEXT: ${policiesSnippet}
-`;
-      const policyResp = await generateAndParse(policyInputPrompt);
-      policyText = policyResp.text || '';
-      parsedPolicy = parseAIResponse(policyText) || null;
-      console.log('=== TASK 2: Policy Analysis - COMPLETE ===');
 
-      // ============================================
-      // TASK 3: Web Search (RUNS ONLY IF TASK 2 SUCCEEDS)
-      // ============================================
-      if (parsedPolicy) {
-        console.log('=== TASK 3: Web Search - STARTING (Task 2 succeeded) ===');
-        const webPrompt = `
-Search the public web for evidence about the company. Return a compact JSON object (single line) with { "webPresenceValidation": { "companyFound": boolean, "relevantIndustry": boolean, "searchSummary": string }, "sources": [{ "title": string, "uri": string }] }. Use the company identifiers: ${application.companyName}, address: ${application.address}, tradeName: ${application.wizardData?.firmTradeName || ''}.
-`;
-        const webResp = await generateAndParse(webPrompt);
-        webText = webResp.text || '';
-        parsedWeb = parseAIResponse(webText) || null;
-        console.log('=== TASK 3: Web Search - COMPLETE ===');
-      } else {
-        console.log('=== TASK 3: Web Search - SKIPPED (Task 2 failed) ===');
-      }
-    } else {
-      console.log('=== TASK 2 & TASK 3: SKIPPED (Task 1 failed) ===');
-    }
+ANALYSIS REQUIREMENTS:
+1. Identify any violations of WorkSafeBC asbestos licensing policies
+2. Calculate certification compliance ratio (certified workers / total workers)
+3. Verify compliance meets the 100% certification requirement
+4. Provide specific policy citations for any violations
+5. Generate actionable recommendations
 
-    // If fact sheet analysis failed to produce any parseable JSON, return fallback
+OUTPUT (Strict JSON on single line):
+Return ONLY a JSON object with NO explanatory text:
+{
+  "policyViolations": [{"field": string, "value": string, "policy": string|null, "clause": string|null, "recommendation": string|null}],
+  "certificationAnalysis": {
+    "totalWorkers": number|null,
+    "certifiedWorkers": number|null,
+    "complianceRatio": number|null,
+    "meetsRequirement": boolean|null
+  },
+  "recommendation": "APPROVE" | "REJECT" | "REQUEST_INFO",
+  "summary": "Brief assessment of policy compliance"
+}
+`;
+
+    // Define Agent 3: Web Presence Investigator
+    const webPrompt = `
+ROLE: You are a Web Intelligence Analyst for WorkSafeBC.
+
+TASK: Investigate the company's public web presence and verify legitimacy.
+
+COMPANY IDENTIFIERS:
+- Name: ${application.companyName}
+- Address: ${application.address}
+- Trade Name: ${application.wizardData?.firmTradeName || 'N/A'}
+
+INVESTIGATION REQUIREMENTS:
+1. Search for evidence the company exists and operates in British Columbia, Canada
+2. Verify the company performs asbestos abatement, demolition, or hazardous materials work
+3. Check for any negative safety or compliance reviews
+4. Assess overall web presence credibility
+5. Cite specific sources found
+
+OUTPUT (Strict JSON on single line):
+Return ONLY a JSON object with NO explanatory text:
+{
+  "webPresenceValidation": {
+    "companyFound": boolean,
+    "relevantIndustry": boolean,
+    "searchSummary": string
+  },
+  "geographicValidation": {
+    "addressExistsInBC": boolean,
+    "addressConflicts": string[],
+    "verifiedLocation": string|null
+  },
+  "sources": [{"title": string, "uri": string}]
+}
+`;
+
+    // Execute all three agents in parallel
+    const [factResp, policyResp, webResp] = await Promise.all([
+      generateAndParse(factPrompt).catch(err => ({ 
+        response: err, text: '', finishReason: 'ERROR', 
+        startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), durationMs: 0 
+      })),
+      generateAndParse(policyInputPrompt).catch(err => ({ 
+        response: err, text: '', finishReason: 'ERROR',
+        startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), durationMs: 0
+      })),
+      generateAndParse(webPrompt).catch(err => ({ 
+        response: err, text: '', finishReason: 'ERROR',
+        startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), durationMs: 0
+      }))
+    ]);
+
+    console.log('=== ALL THREE AGENTS COMPLETED ===');
+
+    // Parse results from each agent
+    const factText = factResp.text || '';
+    const policyText = policyResp.text || '';
+    const webText = webResp.text || '';
+
+    const parsedFact = parseAIResponse(factText) || null;
+    const parsedPolicy = parseAIResponse(policyText) || null;
+    const parsedWeb = parseAIResponse(webText) || null;
+
+    console.log('Agent 1 (Fact Sheet):', parsedFact ? '✓ Success' : '✗ Failed');
+    console.log('Agent 2 (Policy):', parsedPolicy ? '✓ Success' : '✗ Failed');
+    console.log('Agent 3 (Web Search):', parsedWeb ? '✓ Success' : '✗ Failed');
+
+    // Log failures for debugging
     if (!parsedFact) {
       try {
         const fs = await import('fs');
@@ -507,39 +557,172 @@ Search the public web for evidence about the company. Return a compact JSON obje
         const dir = pathMod.resolve(process.cwd(), 'tmp', 'ai-failures');
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         const ts = Date.now();
-        try { fs.writeFileSync(pathMod.join(dir, `fact-raw-${ts}.txt`), `FACT:\n${factText}`, 'utf8'); } catch (e) { }
-        try { fs.writeFileSync(pathMod.join(dir, `fact-response-${ts}.json`), JSON.stringify({ factResp: factResp.response }, null, 2), 'utf8'); } catch (e) { }
+        try { fs.writeFileSync(pathMod.join(dir, `agent1-fact-raw-${ts}.txt`), `FACT:\n${factText}`, 'utf8'); } catch (e) { }
+        try { fs.writeFileSync(pathMod.join(dir, `agent1-fact-response-${ts}.json`), JSON.stringify({ factResp: factResp.response }, null, 2), 'utf8'); } catch (e) { }
       } catch (e) { /* ignore */ }
-
-      return createFallbackAnalysis({
-        riskScore: 'MEDIUM',
-        summary: 'AI returned unparsable response for fact sheet analysis. See debug for raw output.',
-        concerns: ['AI response parsing failed for fact sheet analysis.'],
-        recommendation: 'REQUEST_INFO',
-        debugPrompt: factPrompt,
-        rawResponse: factText
-      });
     }
 
-    // Merge best-effort results into a single result object
-    let merged: any = {};
-    merged.internalRecordValidation = parsedFact?.internalRecordValidation || parsedFact?.internalRecordValidation || { recordFound: false, accountNumber: null, overdueBalance: null, statusMatch: null, concerns: [] };
-    merged.certificationAnalysis = parsedPolicy?.certificationAnalysis || { totalWorkers: null, certifiedWorkers: null, complianceRatio: null, meetsRequirement: null };
-    merged.policyViolations = parsedPolicy?.policyViolations || [];
-    merged.recommendation = parsedPolicy?.recommendation || 'MANUAL_REVIEW_REQUIRED';
-    merged.summary = parsedPolicy?.summary || parsedFact?.summary || 'Partial analysis — manual review recommended.';
-    merged.webPresenceValidation = parsedWeb?.webPresenceValidation || { companyFound: false, relevantIndustry: false, searchSummary: '' };
-    merged.sources = parsedWeb?.sources || parsedPolicy?.sources || [];
+    if (!parsedPolicy) {
+      try {
+        const fs = await import('fs');
+        const pathMod = await import('path');
+        const dir = pathMod.resolve(process.cwd(), 'tmp', 'ai-failures');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const ts = Date.now();
+        try { fs.writeFileSync(pathMod.join(dir, `agent2-policy-raw-${ts}.txt`), `POLICY:\n${policyText}`, 'utf8'); } catch (e) { }
+        try { fs.writeFileSync(pathMod.join(dir, `agent2-policy-response-${ts}.json`), JSON.stringify({ policyResp: policyResp.response }, null, 2), 'utf8'); } catch (e) { }
+      } catch (e) { /* ignore */ }
+    }
 
-    // Attach per-step debug (FACT STEP ONLY)
-    // Note: Steps 2 (policy) and 3 (web) are disabled, so only fact debug is included
+    if (!parsedWeb) {
+      try {
+        const fs = await import('fs');
+        const pathMod = await import('path');
+        const dir = pathMod.resolve(process.cwd(), 'tmp', 'ai-failures');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        const ts = Date.now();
+        try { fs.writeFileSync(pathMod.join(dir, `agent3-web-raw-${ts}.txt`), `WEB:\n${webText}`, 'utf8'); } catch (e) { }
+        try { fs.writeFileSync(pathMod.join(dir, `agent3-web-response-${ts}.json`), JSON.stringify({ webResp: webResp.response }, null, 2), 'utf8'); } catch (e) { }
+      } catch (e) { /* ignore */ }
+    }
+
+    // ============================================
+    // MERGE RESULTS FROM ALL THREE AGENTS
+    // ============================================
+    // Gracefully handle partial failures - use whatever data we successfully received
+    
+    let merged: any = {};
+    
+    // Agent 1: Fact Sheet Validation
+    merged.internalRecordValidation = parsedFact?.internalRecordValidation || { 
+      recordFound: false, 
+      accountNumber: null, 
+      overdueBalance: null, 
+      statusMatch: null, 
+      concerns: parsedFact ? [] : ['Fact sheet analysis failed or returned unparsable data'] 
+    };
+    
+    // Agent 2: Policy Compliance
+    merged.certificationAnalysis = parsedPolicy?.certificationAnalysis || { 
+      totalWorkers: null, 
+      certifiedWorkers: null, 
+      complianceRatio: null, 
+      meetsRequirement: null 
+    };
+    merged.policyViolations = parsedPolicy?.policyViolations || [];
+    
+    // Agent 3: Web Presence
+    merged.webPresenceValidation = parsedWeb?.webPresenceValidation || { 
+      companyFound: false, 
+      relevantIndustry: false, 
+      searchSummary: parsedWeb ? '' : 'Web search analysis failed or returned unparsable data' 
+    };
+    merged.geographicValidation = parsedWeb?.geographicValidation || {
+      addressExistsInBC: false,
+      addressConflicts: [],
+      verifiedLocation: null
+    };
+    
+    // Merge sources from all agents
+    merged.sources = [
+      ...(parsedWeb?.sources || []),
+      ...(parsedPolicy?.sources || []),
+      ...(parsedFact?.sources || [])
+    ];
+    
+    // Determine overall recommendation and summary
+    // Priority: Policy > Fact Sheet > Web (most critical first)
+    merged.recommendation = parsedPolicy?.recommendation || parsedFact?.recommendation || 'MANUAL_REVIEW_REQUIRED';
+    
+    // Create comprehensive summary mentioning which agents succeeded
+    const agentStatuses = [];
+    if (parsedFact) agentStatuses.push('internal record validation');
+    if (parsedPolicy) agentStatuses.push('policy compliance');
+    if (parsedWeb) agentStatuses.push('web presence verification');
+    
+    const failedAgents = [];
+    if (!parsedFact) failedAgents.push('internal record');
+    if (!parsedPolicy) failedAgents.push('policy analysis');
+    if (!parsedWeb) failedAgents.push('web search');
+    
+    if (failedAgents.length === 3) {
+      merged.summary = 'All AI agents failed to produce parsable results. Manual review required.';
+    } else if (failedAgents.length > 0) {
+      merged.summary = `Partial analysis completed (${agentStatuses.join(', ')}). Failed: ${failedAgents.join(', ')}. Manual review recommended.`;
+    } else {
+      merged.summary = parsedPolicy?.summary || parsedFact?.summary || parsedWeb?.searchSummary || 'Analysis completed successfully.';
+    }
+    
+    // Calculate overall risk score (use highest risk from any agent)
+    const riskScores = [
+      parsedFact?.riskScore,
+      parsedPolicy?.riskScore,
+      parsedWeb?.riskScore
+    ].filter(Boolean);
+    
+    const riskPriority: Record<string, number> = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1, 'INVALID': 0 };
+    merged.riskScore = riskScores.reduce((highest, current) => 
+      (riskPriority[current] || 0) > (riskPriority[highest] || 0) ? current : highest,
+      failedAgents.length > 0 ? 'MEDIUM' : 'LOW'
+    );
+    
+    // Collect concerns from all agents
+    merged.concerns = [
+      ...(parsedFact?.concerns || []),
+      ...(parsedPolicy?.concerns || []),
+      ...(parsedWeb?.concerns || [])
+    ];
+    
+    // Add warnings for failed agents
+    if (failedAgents.length > 0) {
+      merged.concerns.push(`Warning: The following analyses failed: ${failedAgents.join(', ')}`);
+    }
+    
+    // Collect required actions from all agents
+    merged.requiredActions = [
+      ...(parsedFact?.requiredActions || []),
+      ...(parsedPolicy?.requiredActions || []),
+      ...(parsedWeb?.requiredActions || [])
+    ];
+
+    // Attach debug info from all three agents
     const perStepDebug = {
-      fact: { prompt: factPrompt, raw: factText, finishReason: factResp.finishReason, parsed: parsedFact || null, startedAt: factResp.startedAt, finishedAt: factResp.finishedAt, durationMs: factResp.durationMs }
+      agent1_factSheet: { 
+        prompt: factPrompt, 
+        raw: factText, 
+        finishReason: factResp.finishReason, 
+        parsed: parsedFact || null, 
+        startedAt: factResp.startedAt, 
+        finishedAt: factResp.finishedAt, 
+        durationMs: factResp.durationMs,
+        status: parsedFact ? 'success' : 'failed'
+      },
+      agent2_policy: { 
+        raw: policyText, 
+        finishReason: policyResp.finishReason, 
+        parsed: parsedPolicy || null, 
+        startedAt: policyResp.startedAt, 
+        finishedAt: policyResp.finishedAt, 
+        durationMs: policyResp.durationMs,
+        status: parsedPolicy ? 'success' : 'failed'
+      },
+      agent3_webSearch: { 
+        raw: webText, 
+        finishReason: webResp.finishReason, 
+        parsed: parsedWeb || null, 
+        startedAt: webResp.startedAt, 
+        finishedAt: webResp.finishedAt, 
+        durationMs: webResp.durationMs,
+        status: parsedWeb ? 'success' : 'failed'
+      },
+      totalDuration: Math.max(factResp.durationMs || 0, policyResp.durationMs || 0, webResp.durationMs || 0),
+      executionMode: 'parallel'
     };
 
     // Use merged as `result` for downstream normalization/validation
     var response = { candidates: [{ groundingMetadata: { groundingChunks: [] } }] } as any; // placeholder for grounding
-    var text = policyText || factText || webText;
+    var text = [factText, policyText, webText].filter(Boolean).join('\n---\n');
+    
       // JSON parsing/extraction refactor: modular strategies for clarity and testability
       function extractFirstJson(input: string): string | null {
         const start = input.indexOf('{');
