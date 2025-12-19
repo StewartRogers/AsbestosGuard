@@ -43,3 +43,24 @@ export const deleteFactSheet = async (filename: string) => {
   const response = await axios.delete(`${API_BASE_URL}/fact-sheets/${filename}`);
   return response.data;
 };
+
+// AI Analysis API
+export const saveAnalysis = async (filename: string, data: any) => {
+  const response = await axios.post(`${API_BASE_URL}/analysis`, { filename, data });
+  return response.data;
+};
+
+export const getAnalysis = async (filename: string) => {
+  const response = await axios.get(`${API_BASE_URL}/analysis/${filename}`);
+  return response.data;
+};
+
+export const getAllAnalyses = async () => {
+  const response = await axios.get(`${API_BASE_URL}/analysis`);
+  return response.data;
+};
+
+export const deleteAnalysis = async (filename: string) => {
+  const response = await axios.delete(`${API_BASE_URL}/analysis/${filename}`);
+  return response.data;
+};

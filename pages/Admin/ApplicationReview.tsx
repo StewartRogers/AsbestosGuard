@@ -4,7 +4,7 @@ import { Button, Card, Badge } from '../../components/UI';
 import { ApplicationSummary } from '../../components/ApplicationSummary';
 import { analyzeApplication } from '../../services/geminiService';
 import { ArrowLeft, BrainCircuit, CheckCircle, XCircle, FileText, AlertTriangle, MessageSquare, Building2, TrendingUp, AlertOctagon, Globe, ExternalLink, Database, Terminal } from 'lucide-react';
-import { readData, writeData } from '../../services/storageService';
+import { saveAnalysis, getAnalysis, deleteAnalysis } from '../../services/apiService';
 
 interface ApplicationReviewProps {
   application: LicenseApplication;
@@ -49,7 +49,8 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
   useEffect(() => {
     const loadAnalysis = async () => {
       try {
-        const savedAnalysis = await readData('adminAnalysis');
+        const analysisKey = `analysis_${application.id}`;
+        const savedAnalysis = await getAnalysis(analysisKey);
         if (savedAnalysis) {
           setAnalysisResult(savedAnalysis);
         }
@@ -58,7 +59,7 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
       }
     };
     loadAnalysis();
-  }, []);
+  }, [application.id]);
 
   const handleRunAI = async () => {
     try {
@@ -83,19 +84,21 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
     onBack();
   };
 
-  // Save analysis result to file
-  const saveAnalysis = async (analysis) => {
+  // Save analysis result to file-based storage via API
+  const savePersistentAnalysis = async (analysis: AIAnalysisResult) => {
     try {
-      await writeData('adminAnalysis', analysis);
+      const analysisKey = `analysis_${application.id}`;
+      await saveAnalysis(analysisKey, analysis);
+      console.log('Analysis persisted to server successfully');
     } catch (error) {
-      console.error('Failed to save admin analysis:', error);
+      console.error('Failed to save admin analysis to server:', error);
     }
   };
 
-  // Call saveAnalysis whenever analysisResult is updated
+  // Call savePersistentAnalysis whenever analysisResult is updated
   useEffect(() => {
     if (analysisResult) {
-      saveAnalysis(analysisResult);
+      savePersistentAnalysis(analysisResult);
     }
   }, [analysisResult]);
 
@@ -343,10 +346,10 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                             // Clear in-memory state
                             setAnalysisResult(null);
                             setShowDebug(false);
-                            // Clear JSON file persistence
+                            // Clear persisted analysis from server
                             try {
-                              const { deleteData } = await import('../../services/storageService');
-                              await deleteData('adminAnalysis');
+                              const analysisKey = `analysis_${application.id}`;
+                              await deleteAnalysis(analysisKey);
                             } catch (error) {
                               console.error('Failed to clear saved analysis:', error);
                             }

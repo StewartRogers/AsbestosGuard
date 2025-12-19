@@ -7,7 +7,6 @@ import {
   ArrowLeft, ChevronRight, ChevronLeft, Check, AlertCircle, 
   HelpCircle, Phone, Mail, UserPlus, Trash2, Building, Calendar, Hash, Info 
 } from 'lucide-react';
-import { readFromStorage, writeToStorage } from '../../services/browserStorageService';
 
 interface NewApplicationFormProps {
   onSubmit: (app: LicenseApplication) => void;
@@ -147,19 +146,6 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
     window.scrollTo(0, 0);
   }, [currentStep]);
 
-  // Load persisted applications on component mount
-  useEffect(() => {
-    const loadApplications = () => {
-      const savedApplications = readFromStorage('applications');
-      if (savedApplications) {
-        // persisted applications are available; currently we do not maintain
-        // a local applications list in this component, so just log for now.
-        console.log('Loaded persisted applications count:', savedApplications.length || 0);
-      }
-    };
-    loadApplications();
-  }, []);
-
   const updateData = (updates: Partial<ApplicationWizardData>) => {
     setData(prev => ({ ...prev, ...updates }));
     setError(null);
@@ -266,13 +252,6 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
-  // Save application to file
-  const saveApplication = (application) => {
-    const currentApplications = readFromStorage('applications') || [];
-    currentApplications.push(application);
-    writeToStorage('applications', currentApplications);
-  };
-
   const handleSubmit = async () => {
     if (!validateStep(7)) return;
     setIsSubmitting(true);
@@ -327,8 +306,7 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
         console.error("AI Analysis failed on submit", e);
     }
 
-    // Submit
-    saveApplication(newApp);
+    // Submit to parent component (App) which handles API persistence
     onSubmit(newApp);
     setIsSubmitting(false);
   };

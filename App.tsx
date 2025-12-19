@@ -10,7 +10,7 @@ import FactSheetList from './pages/Admin/FactSheetList';
 import FactSheetForm from './pages/Admin/FactSheetForm';
 import { ShieldCheck } from 'lucide-react';
 import FactSheetView from './pages/Admin/FactSheetView';
-import { deleteFactSheet, updateFactSheet, createFactSheet } from './services/apiService';
+import { deleteFactSheet, updateFactSheet, createFactSheet, getApplications, createApplication, updateApplication, deleteApplication, getFactSheets } from './services/apiService';
 
 // Default mock wizard data to ensure the new Detail view works for existing mock items
 const DEFAULT_MOCK_WIZARD_DATA: ApplicationWizardData = {
@@ -143,28 +143,40 @@ const INITIAL_FACT_SHEETS: EmployerFactSheet[] = [
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewState>('LANDING');
   
-  // Initialize from localStorage or fallback to default mock data
-  const [applications, setApplications] = useState<LicenseApplication[]>(() => {
-    const saved = localStorage.getItem('asbestos_app_data');
-    return saved ? JSON.parse(saved) : INITIAL_DATA;
-  });
-
-  const [factSheets, setFactSheets] = useState<EmployerFactSheet[]>(() => {
-    const saved = localStorage.getItem('asbestos_fact_sheets');
-    return saved ? JSON.parse(saved) : INITIAL_FACT_SHEETS;
-  });
+  // Initialize from file-based storage via API
+  const [applications, setApplications] = useState<LicenseApplication[]>([]);
+  const [factSheets, setFactSheets] = useState<EmployerFactSheet[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
   const [selectedFactSheet, setSelectedFactSheet] = useState<EmployerFactSheet | null>(null);
 
-  // Persist data whenever it changes
+  // Load applications and fact sheets from server on component mount
   useEffect(() => {
-    localStorage.setItem('asbestos_app_data', JSON.stringify(applications));
-  }, [applications]);
-
-  useEffect(() => {
-    localStorage.setItem('asbestos_fact_sheets', JSON.stringify(factSheets));
-  }, [factSheets]);
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const appsData = await getApplications();
+        const fsData = await getFactSheets();
+        
+        // Extract data from the API response format
+        const appsArray = Array.isArray(appsData) ? appsData.map((item: any) => item.data || item) : [];
+        const fsArray = Array.isArray(fsData) ? fsData.map((item: any) => item.data || item) : [];
+        
+        setApplications(appsArray);
+        setFactSheets(fsArray);
+      } catch (error) {
+        console.error('Failed to load data from server:', error);
+        // Fallback to empty arrays if loading fails
+        setApplications([]);
+        setFactSheets([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadData();
+  }, []);
 
   const handleNavigate = (view: ViewState) => {
     setCurrentView(view);
@@ -173,6 +185,11 @@ export default function App() {
 
   const handleCreateApplication = (app: LicenseApplication) => {
     setApplications(prev => [app, ...prev]);
+    // Persist to server
+    createApplication(app.id, app).catch(error => {
+      console.error('Failed to save application to server:', error);
+      alert('Failed to save application. Please try again.');
+    });
     handleNavigate('EMPLOYER_DASHBOARD');
   };
 
@@ -182,6 +199,11 @@ export default function App() {
       lastUpdated: new Date().toISOString().split('T')[0],
     };
     setApplications(prev => prev.map(a => a.id === updatedApp.id ? appWithTimestamp : a));
+    // Persist to server
+    updateApplication(updatedApp.id, appWithTimestamp).catch(error => {
+      console.error('Failed to update application on server:', error);
+      alert('Failed to update application. Please try again.');
+    });
   };
 
   const handleSelectAppForReview = (id: string) => {
@@ -200,6 +222,11 @@ export default function App() {
       ...data
     };
     setFactSheets(prev => [...prev, newSheet]);
+    // Persist to server
+    createFactSheet(newSheet.id, newSheet).catch(error => {
+      console.error('Failed to save fact sheet to server:', error);
+      alert('Failed to save fact sheet. Please try again.');
+    });
     handleNavigate('ADMIN_FACT_SHEETS');
   };
 
@@ -214,10 +241,27 @@ export default function App() {
     }
   };
 
-  const handleDataImport = (data: { applications: LicenseApplication[], factSheets: EmployerFactSheet[] }) => {
-    if (data.applications) setApplications(data.applications);
-    if (data.factSheets) setFactSheets(data.factSheets);
-    alert('Database successfully restored from file.');
+  const handleDataImport = async (data: { applications: LicenseApplication[], factSheets: EmployerFactSheet[] }) => {
+    try {
+      // Save all applications to server
+      if (data.applications) {
+        for (const app of data.applications) {
+          await createApplication(app.id, app);
+        }
+        setApplications(data.applications);
+      }
+      // Save all fact sheets to server
+      if (data.factSheets) {
+        for (const fs of data.factSheets) {
+          await createFactSheet(fs.id, fs);
+        }
+        setFactSheets(data.factSheets);
+      }
+      alert('Database successfully restored from file and persisted to server.');
+    } catch (error) {
+      console.error('Failed to import data:', error);
+      alert('Failed to import data. Please try again.');
+    }
   };
 
   // Add a handler for viewing a fact sheet
