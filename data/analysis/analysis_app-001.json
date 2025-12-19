@@ -1,0 +1,126 @@
+{
+  "riskScore": "LOW",
+  "isTestAccount": false,
+  "summary": "The application's firm, SafeRemoval Construction Ltd., is found in the internal database with a matching account number and no overdue balance. There are no significant data discrepancies.",
+  "internalRecordValidation": {
+    "recordFound": true,
+    "accountNumber": "FS-12345",
+    "overdueBalance": 0,
+    "statusMatch": true,
+    "concerns": []
+  },
+  "concerns": [],
+  "recommendation": "APPROVE",
+  "geographicValidation": {
+    "addressExistsInBC": false,
+    "addressConflicts": [],
+    "verifiedLocation": null
+  },
+  "webPresenceValidation": {
+    "companyFound": false,
+    "relevantIndustry": false,
+    "searchSummary": ""
+  },
+  "certificationAnalysis": {
+    "totalWorkers": null,
+    "certifiedWorkers": null,
+    "complianceRatio": null,
+    "meetsRequirement": null
+  },
+  "policyViolations": [],
+  "requiredActions": [],
+  "sources": [],
+  "executedAt": "2025-12-19T21:33:10.604Z",
+  "debug": {
+    "prompt": "\nROLE: You are a Regulatory Compliance Analyst for WorkSafeBC.\n\nTASK: Validate the application against the internal Employer Fact Sheet record.\n\nINTERNAL_RECORD (Fact Sheet):\n{\"id\":\"fs-001\",\"employerLegalName\":\"SafeRemoval Construction Ltd.\",\"employerTradeName\":\"SafeRemoval\",\"employerId\":\"FS-12345\",\"activeStatus\":\"Active\",\"accountCoverage\":\"Full Coverage\",\"firmType\":\"Asbestos Abatement Contractor\",\"employerStartDate\":\"2018-03-15\",\"classificationUnit\":\"72402\",\"employerCuStartDate\":\"2018-03-15\",\"overdueBalance\":0,\"currentAccountBalance\":1250}\n\nAPPLICATION_DATA:\n{\"id\":\"app-001\",\"companyName\":\"SafeRemoval Construction Ltd.\",\"applicantName\":\"John Mitchell\",\"email\":\"john.mitchell@saferemoval.com\",\"phone\":\"604-555-0123\",\"licenseType\":\"Class A (Friable Asbestos Removal)\",\"address\":\"1234 Industrial Way, Vancouver, BC V6B 2T3\",\"status\":\"Submitted\",\"submissionDate\":\"2024-12-10T09:30:00Z\",\"lastUpdated\":\"2024-12-10T09:30:00Z\",\"lastEditedBy\":\"John Mitchell\",\"safetyHistory\":{\"hasViolations\":false,\"yearsExperience\":6,\"insuranceExpiry\":\"2025-12-31\"},\"documents\":[{\"id\":\"doc-001\",\"name\":\"Insurance Certificate.pdf\",\"type\":\"application/pdf\",\"uploadDate\":\"2024-12-10T09:15:00Z\"},{\"id\":\"doc-002\",\"name\":\"Safety Manual.pdf\",\"type\":\"application/pdf\",\"uploadDate\":\"2024-12-10T09:20:00Z\"}],\"wizardData\":{\"contactFirstName\":\"John\",\"contactLastName\":\"Mitchell\",\"contactPhone\":\"604-555-0123\",\"contactEmail\":\"john.mitchell@saferemoval.com\",\"contactRelationship\":\"Director\",\"isAdultAndAuthorized\":true,\"permissionToEmail\":true,\"scopePerformsAbatement\":true,\"scopeServiceBuildings\":true,\"scopeServiceOthers\":false,\"scopeTransport\":true,\"scopeSurveys\":true,\"firmLegalName\":\"SafeRemoval Construction Ltd.\",\"firmAddress\":\"1234 Industrial Way, Vancouver, BC V6B 2T3\",\"firmAccountNumber\":\"FS-12345\",\"firmClassificationUnit\":\"72402\",\"firmTradeName\":\"SafeRemoval\",\"firmWorkersCount\":12,\"firmNopDate\":\"2018-03-01\",\"firmNopNumber\":\"NOP-2018-001\",\"firmCertLevel1to4\":10,\"firmCertLevel3\":2,\"ackNonTransferable\":true,\"historyRefused7Years\":false,\"historyRefusedAuth\":false,\"historyNonCompliance\":false,\"historySuspended\":false,\"associates\":[{\"id\":\"assoc-001\",\"firstName\":\"Sarah\",\"lastName\":\"Chen\",\"email\":\"sarah.chen@saferemoval.com\",\"phone\":\"604-555-0124\",\"businessName\":\"SafeRemoval Construction Ltd.\",\"businessAddress\":\"1234 Industrial Way, Vancouver, BC V6B 2T3\",\"relationship\":\"Operations Manager\",\"history\":{\"cancelledOrRefused\":false,\"enforcementAction\":false,\"criminalCivilProcess\":false,\"asbestosEnforcement\":false}}],\"ackOutstandingAmounts\":true,\"ackCompliance\":true,\"ackEnforcement\":true,\"reqWorkersCert\":true,\"reqCompliance\":true,\"reqRecords\":true,\"reqCooperation\":true}}\n\nANALYSIS REQUIREMENTS:\n1. Check if the applicant's firm exists in the internal database\n2. If found, verify the account number matches and check for financial non-compliance (overdue balances)\n3. If not found, flag as high-risk unknown entity\n4. Identify any data discrepancies between application and fact sheet\n5. Determine overall record validation status\n\nOUTPUT (Strict JSON on single line):\nReturn ONLY a JSON object with NO explanatory text:\n{\n  \"riskScore\": \"LOW\" | \"MEDIUM\" | \"HIGH\",\n  \"isTestAccount\": boolean,\n  \"summary\": \"Brief assessment of fact sheet validation\",\n  \"internalRecordValidation\": {\n    \"recordFound\": boolean,\n    \"accountNumber\": string | null,\n    \"overdueBalance\": number | null,\n    \"statusMatch\": boolean | null,\n    \"concerns\": string[]\n  },\n  \"concerns\": [\"List of identified concerns...\"],\n  \"recommendation\": \"APPROVE\" | \"REJECT\" | \"REQUEST_INFO\"\n}\n",
+    "rawResponse": "```json\n{\n  \"riskScore\": \"LOW\",\n  \"isTestAccount\": false,\n  \"summary\": \"The application's firm, SafeRemoval Construction Ltd., is found in the internal database with a matching account number and no overdue balance. There are no significant data discrepancies.\",\n  \"internalRecordValidation\": {\n    \"recordFound\": true,\n    \"accountNumber\": \"FS-12345\",\n    \"overdueBalance\": 0,\n    \"statusMatch\": true,\n    \"concerns\": []\n  },\n  \"concerns\": [],\n  \"recommendation\": \"APPROVE\"\n}\n```",
+    "executedAt": "2025-12-19T21:33:10.604Z",
+    "perStepDebug": {
+      "fact": {
+        "prompt": "\nROLE: You are a Regulatory Compliance Analyst for WorkSafeBC.\n\nTASK: Validate the application against the internal Employer Fact Sheet record.\n\nINTERNAL_RECORD (Fact Sheet):\n{\"id\":\"fs-001\",\"employerLegalName\":\"SafeRemoval Construction Ltd.\",\"employerTradeName\":\"SafeRemoval\",\"employerId\":\"FS-12345\",\"activeStatus\":\"Active\",\"accountCoverage\":\"Full Coverage\",\"firmType\":\"Asbestos Abatement Contractor\",\"employerStartDate\":\"2018-03-15\",\"classificationUnit\":\"72402\",\"employerCuStartDate\":\"2018-03-15\",\"overdueBalance\":0,\"currentAccountBalance\":1250}\n\nAPPLICATION_DATA:\n{\"id\":\"app-001\",\"companyName\":\"SafeRemoval Construction Ltd.\",\"applicantName\":\"John Mitchell\",\"email\":\"john.mitchell@saferemoval.com\",\"phone\":\"604-555-0123\",\"licenseType\":\"Class A (Friable Asbestos Removal)\",\"address\":\"1234 Industrial Way, Vancouver, BC V6B 2T3\",\"status\":\"Submitted\",\"submissionDate\":\"2024-12-10T09:30:00Z\",\"lastUpdated\":\"2024-12-10T09:30:00Z\",\"lastEditedBy\":\"John Mitchell\",\"safetyHistory\":{\"hasViolations\":false,\"yearsExperience\":6,\"insuranceExpiry\":\"2025-12-31\"},\"documents\":[{\"id\":\"doc-001\",\"name\":\"Insurance Certificate.pdf\",\"type\":\"application/pdf\",\"uploadDate\":\"2024-12-10T09:15:00Z\"},{\"id\":\"doc-002\",\"name\":\"Safety Manual.pdf\",\"type\":\"application/pdf\",\"uploadDate\":\"2024-12-10T09:20:00Z\"}],\"wizardData\":{\"contactFirstName\":\"John\",\"contactLastName\":\"Mitchell\",\"contactPhone\":\"604-555-0123\",\"contactEmail\":\"john.mitchell@saferemoval.com\",\"contactRelationship\":\"Director\",\"isAdultAndAuthorized\":true,\"permissionToEmail\":true,\"scopePerformsAbatement\":true,\"scopeServiceBuildings\":true,\"scopeServiceOthers\":false,\"scopeTransport\":true,\"scopeSurveys\":true,\"firmLegalName\":\"SafeRemoval Construction Ltd.\",\"firmAddress\":\"1234 Industrial Way, Vancouver, BC V6B 2T3\",\"firmAccountNumber\":\"FS-12345\",\"firmClassificationUnit\":\"72402\",\"firmTradeName\":\"SafeRemoval\",\"firmWorkersCount\":12,\"firmNopDate\":\"2018-03-01\",\"firmNopNumber\":\"NOP-2018-001\",\"firmCertLevel1to4\":10,\"firmCertLevel3\":2,\"ackNonTransferable\":true,\"historyRefused7Years\":false,\"historyRefusedAuth\":false,\"historyNonCompliance\":false,\"historySuspended\":false,\"associates\":[{\"id\":\"assoc-001\",\"firstName\":\"Sarah\",\"lastName\":\"Chen\",\"email\":\"sarah.chen@saferemoval.com\",\"phone\":\"604-555-0124\",\"businessName\":\"SafeRemoval Construction Ltd.\",\"businessAddress\":\"1234 Industrial Way, Vancouver, BC V6B 2T3\",\"relationship\":\"Operations Manager\",\"history\":{\"cancelledOrRefused\":false,\"enforcementAction\":false,\"criminalCivilProcess\":false,\"asbestosEnforcement\":false}}],\"ackOutstandingAmounts\":true,\"ackCompliance\":true,\"ackEnforcement\":true,\"reqWorkersCert\":true,\"reqCompliance\":true,\"reqRecords\":true,\"reqCooperation\":true}}\n\nANALYSIS REQUIREMENTS:\n1. Check if the applicant's firm exists in the internal database\n2. If found, verify the account number matches and check for financial non-compliance (overdue balances)\n3. If not found, flag as high-risk unknown entity\n4. Identify any data discrepancies between application and fact sheet\n5. Determine overall record validation status\n\nOUTPUT (Strict JSON on single line):\nReturn ONLY a JSON object with NO explanatory text:\n{\n  \"riskScore\": \"LOW\" | \"MEDIUM\" | \"HIGH\",\n  \"isTestAccount\": boolean,\n  \"summary\": \"Brief assessment of fact sheet validation\",\n  \"internalRecordValidation\": {\n    \"recordFound\": boolean,\n    \"accountNumber\": string | null,\n    \"overdueBalance\": number | null,\n    \"statusMatch\": boolean | null,\n    \"concerns\": string[]\n  },\n  \"concerns\": [\"List of identified concerns...\"],\n  \"recommendation\": \"APPROVE\" | \"REJECT\" | \"REQUEST_INFO\"\n}\n",
+        "raw": "```json\n{\n  \"riskScore\": \"LOW\",\n  \"isTestAccount\": false,\n  \"summary\": \"The application's firm, SafeRemoval Construction Ltd., is found in the internal database with a matching account number and no overdue balance. There are no significant data discrepancies.\",\n  \"internalRecordValidation\": {\n    \"recordFound\": true,\n    \"accountNumber\": \"FS-12345\",\n    \"overdueBalance\": 0,\n    \"statusMatch\": true,\n    \"concerns\": []\n  },\n  \"concerns\": [],\n  \"recommendation\": \"APPROVE\"\n}\n```",
+        "finishReason": "STOP",
+        "parsed": {
+          "riskScore": "LOW",
+          "isTestAccount": false,
+          "summary": "The application's firm, SafeRemoval Construction Ltd., is found in the internal database with a matching account number and no overdue balance. There are no significant data discrepancies.",
+          "internalRecordValidation": {
+            "recordFound": true,
+            "accountNumber": "FS-12345",
+            "overdueBalance": 0,
+            "statusMatch": true,
+            "concerns": []
+          },
+          "concerns": [],
+          "recommendation": "APPROVE"
+        },
+        "startedAt": "2025-12-19T21:33:08.479Z",
+        "finishedAt": "2025-12-19T21:33:10.451Z",
+        "durationMs": 1972,
+        "status": "success"
+      },
+      "policy": {
+        "raw": "",
+        "finishReason": "DISABLED",
+        "parsed": null,
+        "startedAt": "2025-12-19T21:33:08.483Z",
+        "finishedAt": "2025-12-19T21:33:08.483Z",
+        "durationMs": 0,
+        "status": "disabled"
+      },
+      "web": {
+        "raw": "",
+        "finishReason": "DISABLED",
+        "parsed": null,
+        "startedAt": "2025-12-19T21:33:08.483Z",
+        "finishedAt": "2025-12-19T21:33:08.483Z",
+        "durationMs": 0,
+        "status": "disabled"
+      },
+      "agent1_factSheet": {
+        "prompt": "\nROLE: You are a Regulatory Compliance Analyst for WorkSafeBC.\n\nTASK: Validate the application against the internal Employer Fact Sheet record.\n\nINTERNAL_RECORD (Fact Sheet):\n{\"id\":\"fs-001\",\"employerLegalName\":\"SafeRemoval Construction Ltd.\",\"employerTradeName\":\"SafeRemoval\",\"employerId\":\"FS-12345\",\"activeStatus\":\"Active\",\"accountCoverage\":\"Full Coverage\",\"firmType\":\"Asbestos Abatement Contractor\",\"employerStartDate\":\"2018-03-15\",\"classificationUnit\":\"72402\",\"employerCuStartDate\":\"2018-03-15\",\"overdueBalance\":0,\"currentAccountBalance\":1250}\n\nAPPLICATION_DATA:\n{\"id\":\"app-001\",\"companyName\":\"SafeRemoval Construction Ltd.\",\"applicantName\":\"John Mitchell\",\"email\":\"john.mitchell@saferemoval.com\",\"phone\":\"604-555-0123\",\"licenseType\":\"Class A (Friable Asbestos Removal)\",\"address\":\"1234 Industrial Way, Vancouver, BC V6B 2T3\",\"status\":\"Submitted\",\"submissionDate\":\"2024-12-10T09:30:00Z\",\"lastUpdated\":\"2024-12-10T09:30:00Z\",\"lastEditedBy\":\"John Mitchell\",\"safetyHistory\":{\"hasViolations\":false,\"yearsExperience\":6,\"insuranceExpiry\":\"2025-12-31\"},\"documents\":[{\"id\":\"doc-001\",\"name\":\"Insurance Certificate.pdf\",\"type\":\"application/pdf\",\"uploadDate\":\"2024-12-10T09:15:00Z\"},{\"id\":\"doc-002\",\"name\":\"Safety Manual.pdf\",\"type\":\"application/pdf\",\"uploadDate\":\"2024-12-10T09:20:00Z\"}],\"wizardData\":{\"contactFirstName\":\"John\",\"contactLastName\":\"Mitchell\",\"contactPhone\":\"604-555-0123\",\"contactEmail\":\"john.mitchell@saferemoval.com\",\"contactRelationship\":\"Director\",\"isAdultAndAuthorized\":true,\"permissionToEmail\":true,\"scopePerformsAbatement\":true,\"scopeServiceBuildings\":true,\"scopeServiceOthers\":false,\"scopeTransport\":true,\"scopeSurveys\":true,\"firmLegalName\":\"SafeRemoval Construction Ltd.\",\"firmAddress\":\"1234 Industrial Way, Vancouver, BC V6B 2T3\",\"firmAccountNumber\":\"FS-12345\",\"firmClassificationUnit\":\"72402\",\"firmTradeName\":\"SafeRemoval\",\"firmWorkersCount\":12,\"firmNopDate\":\"2018-03-01\",\"firmNopNumber\":\"NOP-2018-001\",\"firmCertLevel1to4\":10,\"firmCertLevel3\":2,\"ackNonTransferable\":true,\"historyRefused7Years\":false,\"historyRefusedAuth\":false,\"historyNonCompliance\":false,\"historySuspended\":false,\"associates\":[{\"id\":\"assoc-001\",\"firstName\":\"Sarah\",\"lastName\":\"Chen\",\"email\":\"sarah.chen@saferemoval.com\",\"phone\":\"604-555-0124\",\"businessName\":\"SafeRemoval Construction Ltd.\",\"businessAddress\":\"1234 Industrial Way, Vancouver, BC V6B 2T3\",\"relationship\":\"Operations Manager\",\"history\":{\"cancelledOrRefused\":false,\"enforcementAction\":false,\"criminalCivilProcess\":false,\"asbestosEnforcement\":false}}],\"ackOutstandingAmounts\":true,\"ackCompliance\":true,\"ackEnforcement\":true,\"reqWorkersCert\":true,\"reqCompliance\":true,\"reqRecords\":true,\"reqCooperation\":true}}\n\nANALYSIS REQUIREMENTS:\n1. Check if the applicant's firm exists in the internal database\n2. If found, verify the account number matches and check for financial non-compliance (overdue balances)\n3. If not found, flag as high-risk unknown entity\n4. Identify any data discrepancies between application and fact sheet\n5. Determine overall record validation status\n\nOUTPUT (Strict JSON on single line):\nReturn ONLY a JSON object with NO explanatory text:\n{\n  \"riskScore\": \"LOW\" | \"MEDIUM\" | \"HIGH\",\n  \"isTestAccount\": boolean,\n  \"summary\": \"Brief assessment of fact sheet validation\",\n  \"internalRecordValidation\": {\n    \"recordFound\": boolean,\n    \"accountNumber\": string | null,\n    \"overdueBalance\": number | null,\n    \"statusMatch\": boolean | null,\n    \"concerns\": string[]\n  },\n  \"concerns\": [\"List of identified concerns...\"],\n  \"recommendation\": \"APPROVE\" | \"REJECT\" | \"REQUEST_INFO\"\n}\n",
+        "raw": "```json\n{\n  \"riskScore\": \"LOW\",\n  \"isTestAccount\": false,\n  \"summary\": \"The application's firm, SafeRemoval Construction Ltd., is found in the internal database with a matching account number and no overdue balance. There are no significant data discrepancies.\",\n  \"internalRecordValidation\": {\n    \"recordFound\": true,\n    \"accountNumber\": \"FS-12345\",\n    \"overdueBalance\": 0,\n    \"statusMatch\": true,\n    \"concerns\": []\n  },\n  \"concerns\": [],\n  \"recommendation\": \"APPROVE\"\n}\n```",
+        "finishReason": "STOP",
+        "parsed": {
+          "riskScore": "LOW",
+          "isTestAccount": false,
+          "summary": "The application's firm, SafeRemoval Construction Ltd., is found in the internal database with a matching account number and no overdue balance. There are no significant data discrepancies.",
+          "internalRecordValidation": {
+            "recordFound": true,
+            "accountNumber": "FS-12345",
+            "overdueBalance": 0,
+            "statusMatch": true,
+            "concerns": []
+          },
+          "concerns": [],
+          "recommendation": "APPROVE"
+        },
+        "startedAt": "2025-12-19T21:33:08.479Z",
+        "finishedAt": "2025-12-19T21:33:10.451Z",
+        "durationMs": 1972,
+        "status": "success"
+      },
+      "agent2_policy": {
+        "raw": "",
+        "finishReason": "DISABLED",
+        "parsed": null,
+        "startedAt": "2025-12-19T21:33:08.483Z",
+        "finishedAt": "2025-12-19T21:33:08.483Z",
+        "durationMs": 0,
+        "status": "disabled"
+      },
+      "agent3_webSearch": {
+        "raw": "",
+        "finishReason": "DISABLED",
+        "parsed": null,
+        "startedAt": "2025-12-19T21:33:08.483Z",
+        "finishedAt": "2025-12-19T21:33:08.483Z",
+        "durationMs": 0,
+        "status": "disabled"
+      },
+      "totalDuration": 1972,
+      "executionMode": "parallel"
+    }
+  },
+  "savedAt": "2025-12-19T21:33:13.603Z"
+}

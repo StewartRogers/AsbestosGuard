@@ -10,6 +10,9 @@ const CONFIG = {
   // Set temperature to 0 for deterministic JSON output by default
   TEMPERATURE: 0.0,
 } as const;
+// Agent enable flags (server-side). Set GEMINI_ENABLE_POLICY and GEMINI_ENABLE_WEB to 'true' to enable.
+const ENABLE_POLICY = (typeof process !== 'undefined' && process.env && process.env.GEMINI_ENABLE_POLICY === 'true') || false;
+const ENABLE_WEB = (typeof process !== 'undefined' && process.env && process.env.GEMINI_ENABLE_WEB === 'true') || false;
 // Load Ajv dynamically so TypeScript doesn't require installed types at build
 // time in developer environments where the package may not yet be installed.
 let validateAiAnalysis: (data: any) => boolean;
@@ -80,10 +83,15 @@ export const analyzeApplication = async (
     ? process.env.GEMINI_API_KEY
     : undefined;
 
-  // Do not default the model; require `GEMINI_MODEL` to be set in the server env.
-  const nodeModel = (typeof process !== 'undefined' && process.env)
+  // Resolve model from environment, falling back to CONFIG.DEFAULT_MODEL
+  // if GEMINI_MODEL is not set. Log a warning so operators can configure.
+  let nodeModel = (typeof process !== 'undefined' && process.env)
     ? process.env.GEMINI_MODEL
     : undefined;
+  if (!nodeModel) {
+    try { console.warn('GEMINI_MODEL not set; falling back to default model', CONFIG.DEFAULT_MODEL); } catch (e) {}
+    nodeModel = CONFIG.DEFAULT_MODEL;
+  }
 
   const resolvedKey = nodeKey;
 
@@ -207,6 +215,12 @@ export const analyzeApplication = async (
     if (proxyResult.ok) return proxyResult.json as AIAnalysisResult;
 
     const raw = typeof proxyResult.lastError === 'string' ? proxyResult.lastError : (proxyResult.lastError && proxyResult.lastError.message) ? proxyResult.lastError.message : String(proxyResult.lastError);
+    // Build a minimal fact-step prompt locally so UI can show the attempted prompt and timestamp
+    const nowIso = new Date().toISOString();
+    const appCompact = JSON.stringify(application);
+    const factSheetContext = factSheet ? JSON.stringify(factSheet) : "NO MATCHING EMPLOYER FACT SHEET FOUND IN INTERNAL DATABASE.";
+    const factPromptLocal = `ROLE: You are a Regulatory Compliance Analyst for WorkSafeBC.\n\nTASK: Validate the application against the internal Employer Fact Sheet record.\n\nINTERNAL_RECORD (Fact Sheet):\n${factSheetContext}\n\nAPPLICATION_DATA:\n${appCompact}\n\nOUTPUT (JSON): Return a JSON object with keys riskScore, summary, internalRecordValidation, concerns, recommendation.`;
+
     return createFallbackAnalysis({
       riskScore: 'LOW',
       summary: "AI Analysis unavailable. Server proxy call failed or returned an error.",
@@ -214,8 +228,21 @@ export const analyzeApplication = async (
       recommendation: 'MANUAL_REVIEW_REQUIRED',
       factSheetSummary: "Analysis unavailable.",
       webPresenceSummary: "Search unavailable without API Key.",
-      debugPrompt: 'Prompt not generated because proxy call failed on the client.',
-      rawResponse: `Proxy unreachable or returned error. Last error: ${raw}. Check server logs and /__api/gemini/analyze on the backend.`
+      debugPrompt: factPromptLocal,
+      rawResponse: `Proxy unreachable or returned error. Last error: ${raw}. Check server logs and /__api/gemini/analyze on the backend.`,
+      extraDebug: {
+        perStepDebug: {
+          fact: {
+            prompt: factPromptLocal,
+            raw: `Proxy Error: ${raw}`,
+            parsed: null,
+            startedAt: nowIso,
+            finishedAt: nowIso,
+            durationMs: 0,
+            status: 'failed'
+          }
+        }
+      }
     });
   }
 
@@ -228,24 +255,13 @@ export const analyzeApplication = async (
       recommendation: 'MANUAL_REVIEW_REQUIRED',
       factSheetSummary: "Analysis unavailable.",
       webPresenceSummary: "Search unavailable without API Key.",
-      debugPrompt: 'Prompt not generated because server API key is missing.',
-      rawResponse: 'Server-side API key missing. Set GEMINI_API_KEY in .env.local or environment.'
+      debugPrompt: 'Server-side GEMINI_API_KEY missing. Set GEMINI_API_KEY in .env.local or environment and restart the dev server.',
+      rawResponse: 'Server-side GEMINI_API_KEY missing. Set GEMINI_API_KEY in .env.local or environment and restart the dev server.'
     });
   }
 
-  // Require model to be explicitly configured in the server environment.
-  if (!nodeModel) {
-    return createFallbackAnalysis({
-      riskScore: 'LOW',
-      summary: 'AI Analysis unavailable. GEMINI_MODEL is not configured on the server.',
-      concerns: ['System configuration error: missing GEMINI_MODEL.'],
-      recommendation: 'MANUAL_REVIEW_REQUIRED',
-      factSheetSummary: 'Analysis unavailable.',
-      webPresenceSummary: 'Search unavailable without model configuration.',
-      debugPrompt: 'Prompt not generated because server model is missing.',
-      rawResponse: 'Server-side GEMINI_MODEL missing. Set GEMINI_MODEL in .env.local or environment.'
-    });
-  }
+  // If GEMINI_MODEL was not explicitly set we now defaulted to CONFIG.DEFAULT_MODEL.
+  // This prevents hard failures in developer environments while still logging a warning above.
 
   const companyInfo = `${application.companyName} located at ${application.address}`;
   const tradeName = application.wizardData?.firmTradeName ? `(also known as ${application.wizardData.firmTradeName})` : '';
@@ -518,21 +534,25 @@ Return ONLY a JSON object with NO explanatory text:
 }
 `;
 
-    // Execute all three agents in parallel
-    const [factResp, policyResp, webResp] = await Promise.all([
-      generateAndParse(factPrompt).catch(err => ({ 
-        response: err, text: '', finishReason: 'ERROR', 
-        startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), durationMs: 0 
-      })),
-      generateAndParse(policyInputPrompt).catch(err => ({ 
-        response: err, text: '', finishReason: 'ERROR',
-        startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), durationMs: 0
-      })),
-      generateAndParse(webPrompt).catch(err => ({ 
-        response: err, text: '', finishReason: 'ERROR',
-        startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), durationMs: 0
-      }))
-    ]);
+    // Execute agents in parallel, but respect server-side enable flags so disabled agents are not called.
+    const agentPromises: Array<Promise<any>> = [];
+    // Agent 1: Fact (always executed)
+    agentPromises.push(generateAndParse(factPrompt).catch(err => ({ response: err, text: '', finishReason: 'ERROR', startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), durationMs: 0 })));
+    // Agent 2: Policy (may be disabled)
+    if (ENABLE_POLICY) {
+      agentPromises.push(generateAndParse(policyInputPrompt).catch(err => ({ response: err, text: '', finishReason: 'ERROR', startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), durationMs: 0 })));
+    } else {
+      // Insert a resolved placeholder for disabled agent
+      agentPromises.push(Promise.resolve({ response: null, text: '', finishReason: 'DISABLED', startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), durationMs: 0 }));
+    }
+    // Agent 3: Web (may be disabled)
+    if (ENABLE_WEB) {
+      agentPromises.push(generateAndParse(webPrompt).catch(err => ({ response: err, text: '', finishReason: 'ERROR', startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), durationMs: 0 })));
+    } else {
+      agentPromises.push(Promise.resolve({ response: null, text: '', finishReason: 'DISABLED', startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), durationMs: 0 }));
+    }
+
+    const [factResp, policyResp, webResp] = await Promise.all(agentPromises);
 
     console.log('=== ALL THREE AGENTS COMPLETED ===');
 
@@ -687,37 +707,49 @@ Return ONLY a JSON object with NO explanatory text:
 
     // Attach debug info from all three agents
     const perStepDebug = {
-      agent1_factSheet: { 
-        prompt: factPrompt, 
-        raw: factText, 
-        finishReason: factResp.finishReason, 
-        parsed: parsedFact || null, 
-        startedAt: factResp.startedAt, 
-        finishedAt: factResp.finishedAt, 
+      // Friendly keys used by the UI: `fact`, `policy`, `web`
+      fact: {
+        prompt: factPrompt,
+        raw: factText,
+        finishReason: factResp.finishReason,
+        parsed: parsedFact || null,
+        startedAt: factResp.startedAt,
+        finishedAt: factResp.finishedAt,
         durationMs: factResp.durationMs,
-        status: parsedFact ? 'success' : 'failed'
+        status: factResp.finishReason === 'DISABLED' ? 'disabled' : (parsedFact ? 'success' : 'failed')
       },
-      agent2_policy: { 
-        raw: policyText, 
-        finishReason: policyResp.finishReason, 
-        parsed: parsedPolicy || null, 
-        startedAt: policyResp.startedAt, 
-        finishedAt: policyResp.finishedAt, 
+      policy: {
+        raw: policyText,
+        finishReason: policyResp.finishReason,
+        parsed: parsedPolicy || null,
+        prompt: policyInputPrompt,
+        startedAt: policyResp.startedAt,
+        finishedAt: policyResp.finishedAt,
         durationMs: policyResp.durationMs,
-        status: parsedPolicy ? 'success' : 'failed'
+        status: policyResp.finishReason === 'DISABLED' ? 'disabled' : (parsedPolicy ? 'success' : 'failed')
       },
-      agent3_webSearch: { 
-        raw: webText, 
-        finishReason: webResp.finishReason, 
-        parsed: parsedWeb || null, 
-        startedAt: webResp.startedAt, 
-        finishedAt: webResp.finishedAt, 
+      web: {
+        prompt: webPrompt,
+        raw: webText,
+        finishReason: webResp.finishReason,
+        parsed: parsedWeb || null,
+        startedAt: webResp.startedAt,
+        finishedAt: webResp.finishedAt,
         durationMs: webResp.durationMs,
-        status: parsedWeb ? 'success' : 'failed'
+        status: webResp.finishReason === 'DISABLED' ? 'disabled' : (parsedWeb ? 'success' : 'failed')
       },
+      // Backwards-compatible agent-specific keys
+      agent1_factSheet: null,
+      agent2_policy: null,
+      agent3_webSearch: null,
       totalDuration: Math.max(factResp.durationMs || 0, policyResp.durationMs || 0, webResp.durationMs || 0),
       executionMode: 'parallel'
-    };
+    } as any;
+
+    // Preserve legacy keys for compatibility with older UI shapes
+    perStepDebug.agent1_factSheet = perStepDebug.fact;
+    perStepDebug.agent2_policy = perStepDebug.policy;
+    perStepDebug.agent3_webSearch = perStepDebug.web;
 
     // Use merged as `result` for downstream normalization/validation
     var response = { candidates: [{ groundingMetadata: { groundingChunks: [] } }] } as any; // placeholder for grounding
@@ -857,7 +889,7 @@ Return ONLY a JSON object with NO explanatory text:
           summary: 'AI returned an unparsable response. See debug for raw output.',
           concerns: ['AI response parsing failed.'],
           recommendation: 'REQUEST_INFO',
-          debugPrompt: prompt,
+          debugPrompt: factPrompt,
           rawResponse: text,
           extraDebug: { perStepDebug }
         });

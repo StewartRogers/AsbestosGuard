@@ -1,0 +1,94 @@
+{
+  "id": "app-004",
+  "companyName": "Clean Air Technologies Ltd.",
+  "applicantName": "Robert Kim",
+  "email": "robert.kim@cleanairtech.ca",
+  "phone": "778-555-0456",
+  "licenseType": "Class A (Friable Asbestos Removal)",
+  "address": "3456 Maple Avenue, Richmond, BC V6X 1K2",
+  "status": "Approved",
+  "submissionDate": "2024-11-15T08:15:00Z",
+  "lastUpdated": "2024-11-28T13:20:00Z",
+  "lastEditedBy": "Admin",
+  "safetyHistory": {
+    "hasViolations": false,
+    "yearsExperience": 13,
+    "insuranceExpiry": "2026-11-30"
+  },
+  "documents": [
+    {
+      "id": "doc-006",
+      "name": "General Liability Insurance.pdf",
+      "type": "application/pdf",
+      "uploadDate": "2024-11-15T08:00:00Z"
+    },
+    {
+      "id": "doc-007",
+      "name": "Worker Certifications.pdf",
+      "type": "application/pdf",
+      "uploadDate": "2024-11-15T08:05:00Z"
+    },
+    {
+      "id": "doc-008",
+      "name": "Safety Procedures Manual.pdf",
+      "type": "application/pdf",
+      "uploadDate": "2024-11-15T08:10:00Z"
+    }
+  ],
+  "adminNotes": "Excellent safety record. All documentation complete and verified. Application approved.",
+  "aiAnalysis": "Risk Assessment: LOW\n\nThis applicant demonstrates excellent qualifications:\n- 13 years of industry experience\n- No safety violations on record\n- Clean compliance history\n- Complete and current documentation\n- Established company with good financial standing\n- All worker certifications current and valid\n\nRecommendation: APPROVE",
+  "wizardData": {
+    "contactFirstName": "Robert",
+    "contactLastName": "Kim",
+    "contactPhone": "778-555-0456",
+    "contactEmail": "robert.kim@cleanairtech.ca",
+    "contactRelationship": "CEO",
+    "isAdultAndAuthorized": true,
+    "permissionToEmail": true,
+    "scopePerformsAbatement": true,
+    "scopeServiceBuildings": true,
+    "scopeServiceOthers": true,
+    "scopeTransport": true,
+    "scopeSurveys": true,
+    "firmLegalName": "Clean Air Technologies Ltd.",
+    "firmAddress": "3456 Maple Avenue, Richmond, BC V6X 1K2",
+    "firmAccountNumber": "FS-13579",
+    "firmClassificationUnit": "72402",
+    "firmTradeName": "CleanAir Tech",
+    "firmWorkersCount": 18,
+    "firmNopDate": "2012-09-01",
+    "firmNopNumber": "NOP-2012-089",
+    "firmCertLevel1to4": 15,
+    "firmCertLevel3": 3,
+    "ackNonTransferable": true,
+    "historyRefused7Years": false,
+    "historyRefusedAuth": false,
+    "historyNonCompliance": false,
+    "historySuspended": false,
+    "associates": [
+      {
+        "id": "assoc-004",
+        "firstName": "Jennifer",
+        "lastName": "Lee",
+        "email": "jennifer.lee@cleanairtech.ca",
+        "phone": "778-555-0457",
+        "businessName": "Clean Air Technologies Ltd.",
+        "businessAddress": "3456 Maple Avenue, Richmond, BC V6X 1K2",
+        "relationship": "Chief Operations Officer",
+        "history": {
+          "cancelledOrRefused": false,
+          "enforcementAction": false,
+          "criminalCivilProcess": false,
+          "asbestosEnforcement": false
+        }
+      }
+    ],
+    "ackOutstandingAmounts": true,
+    "ackCompliance": true,
+    "ackEnforcement": true,
+    "reqWorkersCert": true,
+    "reqCompliance": true,
+    "reqRecords": true,
+    "reqCooperation": true
+  }
+}

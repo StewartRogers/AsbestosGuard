@@ -1,0 +1,86 @@
+{
+  "id": "app-001",
+  "companyName": "SafeRemoval Construction Ltd.",
+  "applicantName": "John Mitchell",
+  "email": "john.mitchell@saferemoval.com",
+  "phone": "604-555-0123",
+  "licenseType": "Class A (Friable Asbestos Removal)",
+  "address": "1234 Industrial Way, Vancouver, BC V6B 2T3",
+  "status": "Submitted",
+  "submissionDate": "2024-12-10T09:30:00Z",
+  "lastUpdated": "2024-12-10T09:30:00Z",
+  "lastEditedBy": "John Mitchell",
+  "safetyHistory": {
+    "hasViolations": false,
+    "yearsExperience": 6,
+    "insuranceExpiry": "2025-12-31"
+  },
+  "documents": [
+    {
+      "id": "doc-001",
+      "name": "Insurance Certificate.pdf",
+      "type": "application/pdf",
+      "uploadDate": "2024-12-10T09:15:00Z"
+    },
+    {
+      "id": "doc-002",
+      "name": "Safety Manual.pdf",
+      "type": "application/pdf",
+      "uploadDate": "2024-12-10T09:20:00Z"
+    }
+  ],
+  "wizardData": {
+    "contactFirstName": "John",
+    "contactLastName": "Mitchell",
+    "contactPhone": "604-555-0123",
+    "contactEmail": "john.mitchell@saferemoval.com",
+    "contactRelationship": "Director",
+    "isAdultAndAuthorized": true,
+    "permissionToEmail": true,
+    "scopePerformsAbatement": true,
+    "scopeServiceBuildings": true,
+    "scopeServiceOthers": false,
+    "scopeTransport": true,
+    "scopeSurveys": true,
+    "firmLegalName": "SafeRemoval Construction Ltd.",
+    "firmAddress": "1234 Industrial Way, Vancouver, BC V6B 2T3",
+    "firmAccountNumber": "FS-12345",
+    "firmClassificationUnit": "72402",
+    "firmTradeName": "SafeRemoval",
+    "firmWorkersCount": 12,
+    "firmNopDate": "2018-03-01",
+    "firmNopNumber": "NOP-2018-001",
+    "firmCertLevel1to4": 10,
+    "firmCertLevel3": 2,
+    "ackNonTransferable": true,
+    "historyRefused7Years": false,
+    "historyRefusedAuth": false,
+    "historyNonCompliance": false,
+    "historySuspended": false,
+    "associates": [
+      {
+        "id": "assoc-001",
+        "firstName": "Sarah",
+        "lastName": "Chen",
+        "email": "sarah.chen@saferemoval.com",
+        "phone": "604-555-0124",
+        "businessName": "SafeRemoval Construction Ltd.",
+        "businessAddress": "1234 Industrial Way, Vancouver, BC V6B 2T3",
+        "relationship": "Operations Manager",
+        "history": {
+          "cancelledOrRefused": false,
+          "enforcementAction": false,
+          "criminalCivilProcess": false,
+          "asbestosEnforcement": false
+        }
+      }
+    ],
+    "ackOutstandingAmounts": true,
+    "ackCompliance": true,
+    "ackEnforcement": true,
+    "reqWorkersCert": true,
+    "reqCompliance": true,
+    "reqRecords": true,
+    "reqCooperation": true
+  }
+}

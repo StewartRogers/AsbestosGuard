@@ -1,0 +1,103 @@
+{
+  "id": "app-002",
+  "companyName": "Metro Environmental Services Inc.",
+  "applicantName": "David Rodriguez",
+  "email": "d.rodriguez@metroenviro.ca",
+  "phone": "778-555-0234",
+  "licenseType": "Class B (Non-Friable Asbestos Removal)",
+  "address": "5678 Commerce Street, Burnaby, BC V5C 4R1",
+  "status": "Under Review",
+  "submissionDate": "2024-12-05T14:20:00Z",
+  "lastUpdated": "2024-12-15T10:30:00Z",
+  "lastEditedBy": "Admin",
+  "safetyHistory": {
+    "hasViolations": false,
+    "yearsExperience": 9,
+    "insuranceExpiry": "2026-03-15"
+  },
+  "documents": [
+    {
+      "id": "doc-003",
+      "name": "Liability Insurance.pdf",
+      "type": "application/pdf",
+      "uploadDate": "2024-12-05T14:10:00Z"
+    },
+    {
+      "id": "doc-004",
+      "name": "Training Certificates.pdf",
+      "type": "application/pdf",
+      "uploadDate": "2024-12-05T14:15:00Z"
+    }
+  ],
+  "adminNotes": "Reviewing worker certifications. All documentation appears complete.",
+  "wizardData": {
+    "contactFirstName": "David",
+    "contactLastName": "Rodriguez",
+    "contactPhone": "778-555-0234",
+    "contactEmail": "d.rodriguez@metroenviro.ca",
+    "contactRelationship": "President",
+    "isAdultAndAuthorized": true,
+    "permissionToEmail": true,
+    "scopePerformsAbatement": true,
+    "scopeServiceBuildings": true,
+    "scopeServiceOthers": true,
+    "scopeTransport": false,
+    "scopeSurveys": true,
+    "firmLegalName": "Metro Environmental Services Inc.",
+    "firmAddress": "5678 Commerce Street, Burnaby, BC V5C 4R1",
+    "firmAccountNumber": "FS-67890",
+    "firmClassificationUnit": "72402",
+    "firmTradeName": "Metro Enviro",
+    "firmWorkersCount": 25,
+    "firmNopDate": "2015-07-01",
+    "firmNopNumber": "NOP-2015-045",
+    "firmCertLevel1to4": 20,
+    "firmCertLevel3": 5,
+    "ackNonTransferable": true,
+    "historyRefused7Years": false,
+    "historyRefusedAuth": false,
+    "historyNonCompliance": false,
+    "historySuspended": false,
+    "associates": [
+      {
+        "id": "assoc-002",
+        "firstName": "Emily",
+        "lastName": "Thompson",
+        "email": "emily.t@metroenviro.ca",
+        "phone": "778-555-0235",
+        "businessName": "Metro Environmental Services Inc.",
+        "businessAddress": "5678 Commerce Street, Burnaby, BC V5C 4R1",
+        "relationship": "Vice President",
+        "history": {
+          "cancelledOrRefused": false,
+          "enforcementAction": false,
+          "criminalCivilProcess": false,
+          "asbestosEnforcement": false
+        }
+      },
+      {
+        "id": "assoc-003",
+        "firstName": "Michael",
+        "lastName": "Wong",
+        "email": "m.wong@metroenviro.ca",
+        "phone": "778-555-0236",
+        "businessName": "Metro Environmental Services Inc.",
+        "businessAddress": "5678 Commerce Street, Burnaby, BC V5C 4R1",
+        "relationship": "Safety Officer",
+        "history": {
+          "cancelledOrRefused": false,
+          "enforcementAction": false,
+          "criminalCivilProcess": false,
+          "asbestosEnforcement": false
+        }
+      }
+    ],
+    "ackOutstandingAmounts": true,
+    "ackCompliance": true,
+    "ackEnforcement": true,
+    "reqWorkersCert": true,
+    "reqCompliance": true,
+    "reqRecords": true,
+    "reqCooperation": true
+  }
+}

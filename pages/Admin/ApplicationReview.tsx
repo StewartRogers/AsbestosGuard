@@ -17,12 +17,83 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null);
   const [adminNotes, setAdminNotes] = useState(application.adminNotes || '');
-  const [showDebug, setShowDebug] = useState(false);
+  const [showFactDebug, setShowFactDebug] = useState(false);
+  const [showPolicyDebug, setShowPolicyDebug] = useState(false);
+  const [showWebDebug, setShowWebDebug] = useState(false);
 
   // Attempt to link application to a Fact Sheet by Account Number only
   const matchedFactSheet = factSheets.find(
     fs => application.wizardData?.firmAccountNumber && fs.employerId === application.wizardData.firmAccountNumber
   );
+
+  // Helper to find per-step debug in multiple possible shapes (defensive)
+  const getPerStepDebug = (res: AIAnalysisResult | null) => {
+    if (!res) return {} as any;
+    // Try common locations
+    const candidates = [
+      (res as any).debug?.perStepDebug,
+      (res as any).debug?.per_step_debug,
+      (res as any).perStepDebug,
+      (res as any).per_step_debug,
+      (res as any).extraDebug?.perStepDebug,
+      (res as any).debug?.extraDebug?.perStepDebug,
+      (res as any).debug?.perStepDebug || (res as any).extraDebug?.perStepDebug
+    ];
+    for (const c of candidates) if (c) return c;
+    return {} as any;
+  };
+
+  // Try to extract the first JSON object from a raw string
+  const extractFirstJson = (raw: string | undefined) => {
+    if (!raw) return null;
+    const s = String(raw).replace(/```(?:json)?/g, '');
+    const start = s.indexOf('{');
+    if (start === -1) return null;
+    let inString = false;
+    let escape = false;
+    let depth = 0;
+    for (let i = start; i < s.length; i++) {
+      const ch = s[i];
+      if (escape) { escape = false; continue; }
+      if (ch === '\\') { escape = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          const candidate = s.substring(start, i + 1);
+          try { return JSON.parse(candidate); } catch (e) { return null; }
+        }
+      }
+    }
+    return null;
+  };
+
+  // Normalize analysis shapes: ensure debug.perStepDebug exists when possible and executedAt is set
+  const normalizeAnalysis = (a: any) => {
+    if (!a) return a;
+    a.debug = a.debug || (a.extraDebug || {});
+    const per = a.debug?.perStepDebug || a.debug?.per_step_debug || a.perStepDebug || a.extraDebug?.perStepDebug || a.per_step_debug;
+    if (per && !a.debug.perStepDebug) a.debug.perStepDebug = per;
+    if (!a.debug.perStepDebug && a.debug?.rawResponse) {
+      const parsed = extractFirstJson(a.debug.rawResponse) || null;
+      const ts = a.savedAt || a.executedAt || new Date().toISOString();
+      a.debug.perStepDebug = {
+        fact: {
+          prompt: a.debug.prompt || a.debug.debugPrompt || '',
+          raw: a.debug.rawResponse,
+          parsed,
+          startedAt: ts,
+          finishedAt: ts,
+          durationMs: 0,
+          status: parsed ? 'success' : 'failed'
+        }
+      };
+    }
+    a.executedAt = a.executedAt || a.debug?.executedAt || (a.debug.perStepDebug && (a.debug.perStepDebug.fact?.finishedAt || a.debug.perStepDebug.agent1_factSheet?.finishedAt));
+    return a;
+  };
 
   // Debug: Log factSheets and matching details
   console.log('ApplicationReview: factSheets count:', factSheets.length);
@@ -36,7 +107,8 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
     if (application.aiAnalysis) {
       try {
         const parsed = JSON.parse(application.aiAnalysis);
-        setAnalysisResult(parsed);
+        // Normalize debug shape to ensure UI can find per-step data
+        setAnalysisResult(normalizeAnalysis(parsed));
       } catch (e) {
         console.error("Failed to parse saved AI analysis", e);
         // If stored AI analysis can't be parsed, clear it to avoid crashes
@@ -52,7 +124,11 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
         const analysisKey = `analysis_${application.id}`;
         const savedAnalysis = await getAnalysis(analysisKey);
         if (savedAnalysis) {
-          setAnalysisResult(savedAnalysis);
+          try {
+            setAnalysisResult(normalizeAnalysis(savedAnalysis));
+          } catch (e) {
+            setAnalysisResult(savedAnalysis);
+          }
         }
       } catch (error) {
         console.error('Failed to load admin analysis:', error);
@@ -66,7 +142,8 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
       setIsAnalyzing(true);
       // Pass matched fact sheet to the analysis service
       const result = await analyzeApplication(application, matchedFactSheet);
-      setAnalysisResult(result);
+      // Normalize incoming result to a consistent shape
+      setAnalysisResult(normalizeAnalysis(result));
     } catch (e: any) {
       console.error(e);
     } finally {
@@ -101,6 +178,166 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
       savePersistentAnalysis(analysisResult);
     }
   }, [analysisResult]);
+
+  // Small render helpers to keep JSX stable and avoid inline IIFE complexity
+  const FactSection = () => {
+    const parsed = getPerStepDebug(analysisResult).fact?.parsed || null;
+    return (
+      <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+        <h4 className="text-sm font-semibold text-slate-200 mb-2">Fact Sheet Analysis</h4>
+        <div className="text-sm text-slate-300">
+          {analysisResult?.factSheetSummary ? (
+            <p>{analysisResult.factSheetSummary}</p>
+          ) : parsed ? (
+            parsed.summary && typeof parsed.summary === 'string' ? (
+              <p>{parsed.summary}</p>
+            ) : (() => {
+              const ir = parsed.internalRecordValidation || parsed.internal_record_validation || null;
+              if (ir) {
+                if (ir.recordFound) {
+                  const acc = ir.accountNumber || 'unknown account';
+                  const overdue = (typeof ir.overdueBalance === 'number' && ir.overdueBalance > 0) ? `Outstanding balance $${ir.overdueBalance}` : 'No overdue balance';
+                  const status = ir.statusMatch ? 'Status matches' : 'Status mismatch';
+                  return <p>{`Matched internal record (${acc}). ${overdue}. ${status}.`}</p>;
+                }
+                return <p>No matching internal fact sheet found — treat as HIGH RISK.</p>;
+              }
+              return <pre className="whitespace-pre-wrap">{JSON.stringify(parsed, null, 2)}</pre>;
+            })()
+          ) : (
+            <p className="text-slate-500">No fact sheet analysis available.</p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const PolicySection = () => {
+    const per = getPerStepDebug(analysisResult);
+    const policyParsed = per.policy?.parsed || per.agent2_policy?.parsed || null;
+    const policyStatus = per.policy?.status || per.agent2_policy?.status || null;
+    if (policyStatus === 'disabled') {
+      return (
+        <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50 opacity-50">
+          <h4 className="text-sm font-semibold text-slate-200 mb-2">Policy Violations [ANALYSIS DISABLED]</h4>
+          <div className="text-sm text-slate-400 italic">
+            <p>Policy analysis step is currently disabled for debugging.</p>
+            <p className="mt-2 text-xs">This section will analyze policy violations and certification requirements once re-enabled.</p>
+          </div>
+        </div>
+      );
+    }
+    if (policyParsed) {
+      const ca = policyParsed.certificationAnalysis || policyParsed.certification_analysis || analysisResult?.certificationAnalysis || null;
+      const violations = policyParsed.policyViolations || policyParsed.policy_violations || analysisResult?.policyViolations || [];
+      return (
+        <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+          <h4 className="text-sm font-semibold text-slate-200 mb-2">Policy Violations</h4>
+          <div className="text-sm text-slate-300">
+            {policyParsed.summary && typeof policyParsed.summary === 'string' ? <p>{policyParsed.summary}</p> : null}
+            {ca ? (
+              <p>{`Certification compliance: ${ca.complianceRatio != null ? `${(ca.complianceRatio*100).toFixed(0)}%` : 'unknown'}. Meets requirement: ${ca.meetsRequirement ? 'Yes' : 'No'}.`}</p>
+            ) : null}
+            {violations && violations.length ? (
+              <div className="mt-2">
+                <div className="text-xs text-slate-500 mb-1">Policy Violations Found:</div>
+                <ul className="list-disc list-inside text-sm text-slate-300">
+                  {violations.slice(0,5).map((v: any, i: number) => <li key={i}>{v.field || JSON.stringify(v)}</li>)}
+                </ul>
+              </div>
+            ) : (
+              <p className="mt-2">No policy violations detected.</p>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+        <h4 className="text-sm font-semibold text-slate-200 mb-2">Policy Violations</h4>
+        <div className="text-sm text-slate-400 italic">
+          <p>No policy analysis available.</p>
+        </div>
+      </div>
+    );
+  };
+
+  const WebSection = () => {
+    const per = getPerStepDebug(analysisResult);
+    const webParsed = per.web?.parsed || per.agent3_webSearch?.parsed || null;
+    const webStatus = per.web?.status || per.agent3_webSearch?.status || null;
+    if (webStatus === 'disabled') {
+      return (
+        <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50 opacity-50">
+          <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary [ANALYSIS DISABLED]</h4>
+          <div className="text-sm text-slate-400 italic">
+            <p>Web search step is currently disabled for debugging.</p>
+            <p className="mt-2 text-xs">This section will perform web searches for company information once re-enabled.</p>
+          </div>
+        </div>
+      );
+    }
+    if (webParsed) {
+      if (webParsed.searchSummary && typeof webParsed.searchSummary === 'string') return (
+        <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+          <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary</h4>
+          <div className="text-sm text-slate-300"><p>{webParsed.searchSummary}</p></div>
+        </div>
+      );
+      const wp = webParsed.webPresenceValidation || webParsed.web_presence_validation || null;
+      const gv = webParsed.geographicValidation || webParsed.geographic_validation || null;
+      return (
+        <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+          <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary</h4>
+          <div className="text-sm text-slate-300">
+            {wp ? (
+              <p>{wp.companyFound ? `Public web presence found. Industry relevance: ${wp.relevantIndustry ? 'Yes' : 'No'}.` : 'No public web presence found.'}</p>
+            ) : gv ? (
+              <p>{gv.addressExistsInBC ? `Address verified in BC (${gv.verifiedLocation || 'unknown'}).` : 'Address not verified in BC.'}</p>
+            ) : (
+              <pre className="whitespace-pre-wrap">{JSON.stringify(webParsed, null, 2)}</pre>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+        <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary</h4>
+        <div className="text-sm text-slate-400 italic">
+          <p>No web profile analysis available.</p>
+        </div>
+      </div>
+    );
+  };
+
+  const DebugPanels = () => (
+    analysisResult?.debug ? (
+      <div className="mt-4">
+        <div className="space-y-4">
+          {/* Fact, Policy, Web debug panels (kept compact) */}
+          {showFactDebug && (
+            <div className="p-4 bg-black rounded border border-slate-700 font-mono text-[11px] text-slate-300 overflow-x-auto shadow-inner">
+              <div className="mb-4 pb-3 border-b border-slate-800">
+                <div className="text-xs text-slate-500">Executed at: <strong className="text-slate-300">{analysisResult.executedAt || analysisResult.debug?.executedAt || 'unknown'}</strong></div>
+              </div>
+              <pre className="whitespace-pre-wrap">{JSON.stringify(getPerStepDebug(analysisResult).fact || {}, null, 2)}</pre>
+            </div>
+          )}
+          {showPolicyDebug && (
+            <div className="p-4 bg-black rounded border border-slate-700 font-mono text-[11px] text-slate-300 overflow-x-auto shadow-inner">
+              <pre className="whitespace-pre-wrap">{JSON.stringify(getPerStepDebug(analysisResult).policy || {}, null, 2)}</pre>
+            </div>
+          )}
+          {showWebDebug && (
+            <div className="p-4 bg-black rounded border border-slate-700 font-mono text-[11px] text-slate-300 overflow-x-auto shadow-inner">
+              <pre className="whitespace-pre-wrap">{JSON.stringify(getPerStepDebug(analysisResult).web || {}, null, 2)}</pre>
+            </div>
+          )}
+        </div>
+      </div>
+    ) : null
+  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -201,17 +438,59 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                     <Building2 className="w-5 h-5 text-blue-600 mr-2" />
                     Employer Fact Sheet Match
                  </h3>
-                 <Badge color={matchedFactSheet.activeStatus === 'Active' ? 'green' : 'gray'}>{matchedFactSheet.activeStatus}</Badge>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
-                 <div>
-                    <span className="block text-slate-500">Employer ID</span>
-                    <span className="font-medium text-slate-900">{matchedFactSheet.employerId}</span>
-                 </div>
-                 <div>
+                  {/* Web Profile Summary is rendered below the header */}
                     <span className="block text-slate-500">Legal Name</span>
                     <span className="font-medium text-slate-900">{matchedFactSheet.employerLegalName}</span>
                  </div>
+                 {/* Render Web Profile Summary below the header to avoid JSX adjacency issues */}
+                 {(() => {
+                   const per = getPerStepDebug(analysisResult);
+                   const webParsed = per.web?.parsed || per.agent3_webSearch?.parsed || null;
+                   const webStatus = per.web?.status || per.agent3_webSearch?.status || null;
+                   if (webStatus === 'disabled') {
+                     return (
+                       <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50 opacity-50">
+                         <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary [ANALYSIS DISABLED]</h4>
+                         <div className="text-sm text-slate-400 italic">
+                           <p>Web search step is currently disabled for debugging.</p>
+                           <p className="mt-2 text-xs">This section will perform web searches for company information once re-enabled.</p>
+                         </div>
+                       </div>
+                     );
+                   }
+                   if (webParsed) {
+                     if (webParsed.searchSummary && typeof webParsed.searchSummary === 'string') return (
+                       <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+                         <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary</h4>
+                         <div className="text-sm text-slate-300"><p>{webParsed.searchSummary}</p></div>
+                       </div>
+                     );
+                     const wp = webParsed.webPresenceValidation || webParsed.web_presence_validation || null;
+                     const gv = webParsed.geographicValidation || webParsed.geographic_validation || null;
+                     return (
+                       <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+                         <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary</h4>
+                         <div className="text-sm text-slate-300">
+                           {wp ? (
+                             <p>{wp.companyFound ? `Public web presence found. Industry relevance: ${wp.relevantIndustry ? 'Yes' : 'No'}.` : 'No public web presence found.'}</p>
+                           ) : gv ? (
+                             <p>{gv.addressExistsInBC ? `Address verified in BC (${gv.verifiedLocation || 'unknown'}).` : 'Address not verified in BC.'}</p>
+                           ) : (
+                             <pre className="whitespace-pre-wrap">{JSON.stringify(webParsed, null, 2)}</pre>
+                           )}
+                         </div>
+                       </div>
+                     );
+                   }
+                   return (
+                     <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
+                       <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary</h4>
+                       <div className="text-sm text-slate-400 italic">
+                         <p>No web profile analysis available.</p>
+                       </div>
+                     </div>
+                   );
+                 })()}
                  <div>
                     <span className="block text-slate-500">Trade Name</span>
                     <span className="font-medium text-slate-900">{matchedFactSheet.employerTradeName || 'N/A'}</span>
@@ -256,8 +535,7 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                     <span className="font-medium text-slate-900">{matchedFactSheet.violationsRecord || 'N/A'}</span>
                  </div>
               </div>
-            </div>
-          ) : (
+            ) : (
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 text-center text-slate-500">
                 <Building2 className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                 <p>No matching Employer Fact Sheet found for this company.</p>
@@ -293,59 +571,45 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                   <BrainCircuit className="w-10 h-10 mx-auto mb-4 opacity-50" />
                   <p>Searching web & analyzing application data...</p>
                 </div>
-              ) : analysisResult ? (<>
+              ) : analysisResult ? (
+                <>
                 <div className="space-y-6">
-                  {/* 1) Fact Sheet Analysis */}
-                  <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50">
-                    <h4 className="text-sm font-semibold text-slate-200 mb-2">Fact Sheet Analysis</h4>
-                    <div className="text-sm text-slate-300">
-                      {analysisResult.factSheetSummary ? (
-                        <p>{analysisResult.factSheetSummary}</p>
-                      ) : (
-                        // Fallback: show parsed fact JSON if available
-                        analysisResult.debug?.perStepDebug?.fact?.parsed ? (
-                          <pre className="whitespace-pre-wrap">{JSON.stringify(analysisResult.debug.perStepDebug.fact.parsed, null, 2)}</pre>
-                        ) : (
-                          <p className="text-slate-500">No fact sheet analysis available.</p>
-                        )
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 2) Policy Violations - PLACEHOLDER (Step 2 disabled) */}
-                  <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50 opacity-50">
-                    <h4 className="text-sm font-semibold text-slate-200 mb-2">Policy Violations [ANALYSIS DISABLED]</h4>
-                    <div className="text-sm text-slate-400 italic">
-                      <p>Policy analysis step is currently disabled for debugging.</p>
-                      <p className="mt-2 text-xs">This section will analyze policy violations and certification requirements once re-enabled.</p>
-                    </div>
-                  </div>
-
-                  {/* 3) Web Profile Summary - PLACEHOLDER (Step 3 disabled) */}
-                  <div className="bg-slate-800/30 p-4 rounded border border-slate-700/50 opacity-50">
-                    <h4 className="text-sm font-semibold text-slate-200 mb-2">Web Profile Summary [ANALYSIS DISABLED]</h4>
-                    <div className="text-sm text-slate-400 italic">
-                      <p>Web search step is currently disabled for debugging.</p>
-                      <p className="mt-2 text-xs">This section will perform web searches for company information once re-enabled.</p>
-                    </div>
-                  </div>
+                  <FactSection />
+                  <PolicySection />
+                  <WebSection />
                 </div>
 
-                  <div className="text-right flex justify-end items-center gap-4">
-                     {analysisResult.debug && (
-                        <button 
-                            onClick={() => setShowDebug(!showDebug)}
-                            className="text-xs text-brand-400 hover:text-brand-300 underline transition-colors flex items-center"
+                <div className="text-right flex justify-end items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => setShowFactDebug(!showFactDebug)}
+                          className="text-xs text-brand-400 hover:text-brand-300 underline transition-colors flex items-center"
                         >
-                            <Terminal className="w-3 h-3 mr-1" />
-                            {showDebug ? 'Hide' : 'Show'} AI Conversation
+                          <Terminal className="w-3 h-3 mr-1" />
+                          {showFactDebug ? 'Hide' : 'Show'} Fact Conversation
                         </button>
-                    )}
+                        <button
+                          onClick={() => setShowPolicyDebug(!showPolicyDebug)}
+                          className="text-xs text-brand-400 hover:text-brand-300 underline transition-colors flex items-center"
+                        >
+                          <Terminal className="w-3 h-3 mr-1" />
+                          {showPolicyDebug ? 'Hide' : 'Show'} Policy Conversation
+                        </button>
+                        <button
+                          onClick={() => setShowWebDebug(!showWebDebug)}
+                          className="text-xs text-brand-400 hover:text-brand-300 underline transition-colors flex items-center"
+                        >
+                          <Terminal className="w-3 h-3 mr-1" />
+                          {showWebDebug ? 'Hide' : 'Show'} Web Conversation
+                        </button>
+                      </div>
                     <button 
                         onClick={async () => {
                             // Clear in-memory state
                             setAnalysisResult(null);
-                            setShowDebug(false);
+                            setShowFactDebug(false);
+                            setShowPolicyDebug(false);
+                            setShowWebDebug(false);
                             // Clear persisted analysis from server
                             try {
                               const analysisKey = `analysis_${application.id}`;
@@ -360,123 +624,114 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                     </button>
                   </div>
 
-                  {showDebug && analysisResult.debug && (
-                    <div className="mt-4 p-4 bg-black rounded border border-slate-700 font-mono text-[11px] text-slate-300 overflow-x-auto shadow-inner animate-fadeIn">
-                        <div className="mb-4 pb-3 border-b border-slate-800">
-                            <div className="text-xs text-slate-500">Executed at: <strong className="text-slate-300">{analysisResult.executedAt || (analysisResult.debug?.executedAt ? analysisResult.debug.executedAt : 'unknown')}</strong></div>
-                        </div>
-                        <div className="mb-6">
-                            <strong className="text-green-400 block mb-2 border-b border-slate-800 pb-1">PROMPT(S) SENT TO GEMINI:</strong>
-                            {analysisResult.debug.perStepDebug ? (
-                              <div className="space-y-4">
-                                {analysisResult.debug.perStepDebug.fact && (
-                                  <div>
-                                    <div className="text-xs text-slate-500 mb-1">Fact-sheet prompt</div>
-                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.fact.prompt}</pre>
-                                  </div>
-                                )}
-                                {analysisResult.debug.perStepDebug.policy && (
-                                  <div>
-                                    <div className="text-xs text-slate-500 mb-1">Policy comparison prompt</div>
-                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.policy.prompt}</pre>
-                                  </div>
-                                )}
-                                {analysisResult.debug.perStepDebug.web && (
-                                  <div>
-                                    <div className="text-xs text-slate-500 mb-1">Web search prompt</div>
-                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.web.prompt}</pre>
+                  {/* Per-agent debug panels (render only when their toggles are active) */}
+                  {analysisResult.debug && (
+                    <div className="mt-4">
+                      <div className="space-y-4">
+                        {showFactDebug && (() => {
+                          const per = getPerStepDebug(analysisResult);
+                          const fact = per.fact || per.agent1_factSheet || per.agent1 || per.agent1_fact || null;
+                          if (!fact) {
+                            return (
+                              <div className="p-4 bg-black/70 rounded border border-slate-700 font-mono text-[11px] text-slate-400">Fact debug not available.</div>
+                            );
+                          }
+                          return (
+                            <div className="p-4 bg-black rounded border border-slate-700 font-mono text-[11px] text-slate-300 overflow-x-auto shadow-inner animate-fadeIn">
+                              <div className="mb-4 pb-3 border-b border-slate-800">
+                                <div className="text-xs text-slate-500">Executed at: <strong className="text-slate-300">{analysisResult.executedAt || (analysisResult.debug?.executedAt ? analysisResult.debug.executedAt : 'unknown')}</strong></div>
+                              </div>
+                              <div className="mb-3">
+                                <strong className="text-green-400 block mb-2 border-b border-slate-800 pb-1">FACT PROMPT</strong>
+                                {fact.prompt ? <pre className="whitespace-pre-wrap">{fact.prompt}</pre> : <pre className="whitespace-pre-wrap">{analysisResult.debug.prompt || ''}</pre>}
+                              </div>
+                              <div>
+                                <strong className="text-brand-400 block mb-2 border-b border-slate-800 pb-1">FACT RAW RESPONSE</strong>
+                                <div className="text-[11px] text-slate-400 mb-2">
+                                  <span className="mr-3">Status: {fact.parsed ? <span className="text-green-300">Success — parsed JSON</span> : <span className="text-amber-300">Error — parsing failed</span>}</span>
+                                  <span className="mr-3">Started: {fact.startedAt}</span>
+                                  <span className="mr-3">Duration: {fact.durationMs ? `${fact.durationMs}ms` : 'n/a'}</span>
+                                </div>
+                                <pre className="whitespace-pre-wrap">{fact.raw}</pre>
+                                {fact.parsed && (
+                                  <div className="mt-2">
+                                    <div className="text-xs text-slate-500 mb-1">Parsed JSON:</div>
+                                    <pre className="whitespace-pre-wrap">{JSON.stringify(fact.parsed, null, 2)}</pre>
                                   </div>
                                 )}
                               </div>
-                            ) : (
-                              <pre className="whitespace-pre-wrap">{analysisResult.debug.prompt}</pre>
-                            )}
-                        </div>
-                        <div>
-                            <strong className="text-brand-400 block mb-2 border-b border-slate-800 pb-1">RAW RESPONSE FROM GEMINI:</strong>
-                            {analysisResult.debug.perStepDebug ? (
-                              <div className="space-y-4">
-                                {analysisResult.debug.perStepDebug.fact && (
-                                  <div>
-                                    <div className="text-xs text-slate-500 mb-1">Fact-sheet analysis (fact)</div>
-                                    <div className="text-[11px] text-slate-400 mb-1">
-                                      <span className="mr-3">Status: {analysisResult.debug.perStepDebug.fact.parsed ? (
-                                        <span className="text-green-300">Success — parsed JSON</span>
-                                      ) : (
-                                        <span className="text-amber-300">Error — parsing failed</span>
-                                      )}</span>
-                                      <span className="mr-3">Started: {analysisResult.debug.perStepDebug.fact.startedAt}</span>
-                                      <span className="mr-3">Duration: {analysisResult.debug.perStepDebug.fact.durationMs ? `${analysisResult.debug.perStepDebug.fact.durationMs}ms` : 'n/a'}</span>
-                                      {analysisResult.debug.perStepDebug.fact.finishReason ? (
-                                        <span className="ml-2 text-xs text-slate-500">({analysisResult.debug.perStepDebug.fact.finishReason})</span>
-                                      ) : null}
-                                    </div>
-                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.fact.raw}</pre>
-                                    {analysisResult.debug.perStepDebug.fact.parsed && (
-                                      <div className="mt-2">
-                                        <div className="text-xs text-slate-500 mb-1">Parsed JSON:</div>
-                                        <pre className="whitespace-pre-wrap">{JSON.stringify(analysisResult.debug.perStepDebug.fact.parsed, null, 2)}</pre>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                                {analysisResult.debug.perStepDebug.policy && (
-                                  <div>
-                                    <div className="text-xs text-slate-500 mb-1">Policy comparison (policy)</div>
-                                    <div className="text-[11px] text-slate-400 mb-1">
-                                      <span className="mr-3">Status: {analysisResult.debug.perStepDebug.policy.parsed ? (
-                                        <span className="text-green-300">Success — parsed JSON</span>
-                                      ) : (
-                                        <span className="text-amber-300">Error — parsing failed</span>
-                                      )}</span>
-                                      <span className="mr-3">Started: {analysisResult.debug.perStepDebug.policy.startedAt}</span>
-                                      <span className="mr-3">Duration: {analysisResult.debug.perStepDebug.policy.durationMs ? `${analysisResult.debug.perStepDebug.policy.durationMs}ms` : 'n/a'}</span>
-                                      {analysisResult.debug.perStepDebug.policy.finishReason ? (
-                                        <span className="ml-2 text-xs text-slate-500">({analysisResult.debug.perStepDebug.policy.finishReason})</span>
-                                      ) : null}
-                                    </div>
-                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.policy.raw}</pre>
-                                    {analysisResult.debug.perStepDebug.policy.parsed && (
-                                      <div className="mt-2">
-                                        <div className="text-xs text-slate-500 mb-1">Parsed JSON:</div>
-                                        <pre className="whitespace-pre-wrap">{JSON.stringify(analysisResult.debug.perStepDebug.policy.parsed, null, 2)}</pre>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                                {analysisResult.debug.perStepDebug.web && (
-                                  <div>
-                                    <div className="text-xs text-slate-500 mb-1">Web search (web)</div>
-                                    <div className="text-[11px] text-slate-400 mb-1">
-                                      <span className="mr-3">Status: {analysisResult.debug.perStepDebug.web.parsed ? (
-                                        <span className="text-green-300">Success — parsed JSON</span>
-                                      ) : (
-                                        <span className="text-amber-300">Error — parsing failed</span>
-                                      )}</span>
-                                      <span className="mr-3">Started: {analysisResult.debug.perStepDebug.web.startedAt}</span>
-                                      <span className="mr-3">Duration: {analysisResult.debug.perStepDebug.web.durationMs ? `${analysisResult.debug.perStepDebug.web.durationMs}ms` : 'n/a'}</span>
-                                      {analysisResult.debug.perStepDebug.web.finishReason ? (
-                                        <span className="ml-2 text-xs text-slate-500">({analysisResult.debug.perStepDebug.web.finishReason})</span>
-                                      ) : null}
-                                    </div>
-                                    <pre className="whitespace-pre-wrap">{analysisResult.debug.perStepDebug.web.raw}</pre>
-                                    {analysisResult.debug.perStepDebug.web.parsed && (
-                                      <div className="mt-2">
-                                        <div className="text-xs text-slate-500 mb-1">Parsed JSON:</div>
-                                        <pre className="whitespace-pre-wrap">{JSON.stringify(analysisResult.debug.perStepDebug.web.parsed, null, 2)}</pre>
-                                      </div>
-                                    )}
+                            </div>
+                          );
+                        })()}
+
+                        {showPolicyDebug && (() => {
+                          const per = getPerStepDebug(analysisResult);
+                          const policy = per.policy || per.agent2_policy || per.agent2 || null;
+                          if (!policy) return (
+                            <div className="p-4 bg-black/70 rounded border border-slate-700 font-mono text-[11px] text-slate-400">Policy debug not available.</div>
+                          );
+                          return (
+                            <div className="p-4 bg-black rounded border border-slate-700 font-mono text-[11px] text-slate-300 overflow-x-auto shadow-inner animate-fadeIn">
+                              <div className="mb-3">
+                                <strong className="text-green-400 block mb-2 border-b border-slate-800 pb-1">POLICY PROMPT</strong>
+                                {policy.prompt ? <pre className="whitespace-pre-wrap">{policy.prompt}</pre> : <pre className="whitespace-pre-wrap">(no prompt captured)</pre>}
+                              </div>
+                              <div>
+                                <strong className="text-brand-400 block mb-2 border-b border-slate-800 pb-1">POLICY RAW RESPONSE</strong>
+                                <div className="text-[11px] text-slate-400 mb-2">
+                                  <span className="mr-3">Status: {policy.parsed ? <span className="text-green-300">Success — parsed JSON</span> : <span className="text-amber-300">Error — parsing failed</span>}</span>
+                                  <span className="mr-3">Started: {policy.startedAt}</span>
+                                  <span className="mr-3">Duration: {policy.durationMs ? `${policy.durationMs}ms` : 'n/a'}</span>
+                                </div>
+                                <pre className="whitespace-pre-wrap">{policy.raw}</pre>
+                                {policy.parsed && (
+                                  <div className="mt-2">
+                                    <div className="text-xs text-slate-500 mb-1">Parsed JSON:</div>
+                                    <pre className="whitespace-pre-wrap">{JSON.stringify(policy.parsed, null, 2)}</pre>
                                   </div>
                                 )}
                               </div>
-                            ) : (
-                              <pre className="whitespace-pre-wrap">{analysisResult.debug.rawResponse}</pre>
-                            )}
-                        </div>
+                            </div>
+                          );
+                        })()}
+
+                        {showWebDebug && (() => {
+                          const per = getPerStepDebug(analysisResult);
+                          const web = per.web || per.agent3_webSearch || per.agent3 || null;
+                          if (!web) return (
+                            <div className="p-4 bg-black/70 rounded border border-slate-700 font-mono text-[11px] text-slate-400">Web debug not available.</div>
+                          );
+                          return (
+                            <div className="p-4 bg-black rounded border border-slate-700 font-mono text-[11px] text-slate-300 overflow-x-auto shadow-inner animate-fadeIn">
+                              <div className="mb-3">
+                                <strong className="text-green-400 block mb-2 border-b border-slate-800 pb-1">WEB PROMPT</strong>
+                                {web.prompt ? <pre className="whitespace-pre-wrap">{web.prompt}</pre> : <pre className="whitespace-pre-wrap">(no prompt captured)</pre>}
+                              </div>
+                              <div>
+                                <strong className="text-brand-400 block mb-2 border-b border-slate-800 pb-1">WEB RAW RESPONSE</strong>
+                                <div className="text-[11px] text-slate-400 mb-2">
+                                  <span className="mr-3">Status: {web.parsed ? <span className="text-green-300">Success — parsed JSON</span> : <span className="text-amber-300">Error — parsing failed</span>}</span>
+                                  <span className="mr-3">Started: {web.startedAt}</span>
+                                  <span className="mr-3">Duration: {web.durationMs ? `${web.durationMs}ms` : 'n/a'}</span>
+                                </div>
+                                <pre className="whitespace-pre-wrap">{web.raw}</pre>
+                                {web.parsed && (
+                                  <div className="mt-2">
+                                    <div className="text-xs text-slate-500 mb-1">Parsed JSON:</div>
+                                    <pre className="whitespace-pre-wrap">{JSON.stringify(web.parsed, null, 2)}</pre>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+
+                      
                     </div>
                   )}
 
-              </>) : (
+              ) : (
                 <div className="text-center py-6 text-slate-400 text-sm">
                   Click 'Run Analysis' to have Gemini review this application for risk factors and search the web for company details.
                 </div>
