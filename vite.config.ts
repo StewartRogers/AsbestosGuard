@@ -137,6 +137,11 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        // Enable top-level await and modern syntax support in the output bundle
+        // to match the app’s usage and avoid esbuild target downgrades.
+        target: 'es2022'
       }
     };
 });

@@ -730,7 +730,7 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                       
                     </div>
                   )}
-
+                </>
               ) : (
                 <div className="text-center py-6 text-slate-400 text-sm">
                   Click 'Run Analysis' to have Gemini review this application for risk factors and search the web for company details.

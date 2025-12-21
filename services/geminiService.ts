@@ -210,7 +210,20 @@ export const analyzeApplication = async (
       return { ok: false, lastError };
     }
 
-    const endpoints = ['/__api/gemini/analyze', 'http://localhost:5000/__api/gemini/analyze'];
+    // Determine proxy endpoints based on environment
+    const getProxyEndpoints = () => {
+      if (typeof window !== 'undefined') {
+        // In browser
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+          // Production: use relative URL
+          return ['/__api/gemini/analyze'];
+        }
+      }
+      // Development: try both relative and localhost
+      return ['/__api/gemini/analyze', 'http://localhost:5000/__api/gemini/analyze'];
+    };
+
+    const endpoints = getProxyEndpoints();
     const proxyResult = await tryProxyEndpoints(endpoints, { application, factSheet }, CONFIG.DEFAULT_TIMEOUT_MS);
     if (proxyResult.ok) return proxyResult.json as AIAnalysisResult;
 

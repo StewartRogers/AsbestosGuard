@@ -2,7 +2,22 @@ import { readFromStorage, writeToStorage } from './browserStorageService';
 import { readFromFile, writeToFile } from './fileSystemStorageService';
 
 const isBrowser = typeof window !== 'undefined';
-const API_BASE = 'http://localhost:5000';
+
+// Determine API base URL based on environment
+// In production (Azure), use relative URLs; in development, use localhost
+const getApiBase = () => {
+  if (!isBrowser) return '';
+  
+  // If running in production (deployed), use relative URL
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return ''; // Use relative URL (same origin)
+  }
+  
+  // In development, use localhost
+  return 'http://localhost:5000';
+};
+
+const API_BASE = getApiBase();
 
 export const readData = async (key: string): Promise<any> => {
   if (isBrowser) {

@@ -1,6 +1,21 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+// Determine API base URL based on environment
+// In production (Azure), use relative URLs; in development, use localhost
+const getApiBaseUrl = () => {
+  // Check if we're in a browser environment
+  if (typeof window !== 'undefined') {
+    // If running in production (deployed), use relative URL
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return '/api'; // Use relative URL (same origin)
+    }
+  }
+  
+  // In development or server-side, use localhost
+  return 'http://localhost:5000/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Applications API
 export const createApplication = async (filename: string, data: any) => {
