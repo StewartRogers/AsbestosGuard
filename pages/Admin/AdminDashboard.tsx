@@ -117,8 +117,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ applications, factSheet
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
-            {applications.map((app) => (
-              <tr key={app.id} className="hover:bg-slate-50 transition-colors">
+            {applications.map((app, idx) => (
+              <tr key={app.id ?? `app-${idx}`} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div>
@@ -128,16 +128,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ applications, factSheet
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-sm text-slate-700">{app.licenseType.split('(')[0]}</span>
+                  <span className="text-sm text-slate-700">{app.licenseType?.split?.('(')[0] ?? 'Unknown'}</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                   {app.submissionDate}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {app.safetyHistory.hasViolations ? (
+                  {app.safetyHistory?.hasViolations ? (
                     <Badge color="red">Violations</Badge>
                   ) : (
-                     <span className="text-sm text-slate-500">Clean Record</span>
+                     <span className="text-sm text-slate-500">{typeof app.safetyHistory?.hasViolations === 'boolean' ? 'Clean Record' : 'Unknown'}</span>
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">

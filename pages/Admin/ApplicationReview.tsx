@@ -95,12 +95,7 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
     return a;
   };
 
-  // Debug: Log factSheets and matching details
-  console.log('ApplicationReview: factSheets count:', factSheets.length);
-  console.log('ApplicationReview: application.companyName:', application.companyName);
-  console.log('ApplicationReview: application.wizardData?.firmAccountNumber:', application.wizardData?.firmAccountNumber);
-  console.log('ApplicationReview: application.wizardData?.firmTradeName:', application.wizardData?.firmTradeName);
-  console.log('ApplicationReview: matchedFactSheet:', matchedFactSheet ? 'Found' : 'Not Found', matchedFactSheet);
+  // Debug logs removed for production; use a logger if needed
 
   // Parse existing analysis if available on load
   useEffect(() => {
@@ -166,7 +161,6 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
     try {
       const analysisKey = `analysis_${application.id}`;
       await saveAnalysis(analysisKey, analysis);
-      console.log('Analysis persisted to server successfully');
     } catch (error) {
       console.error('Failed to save admin analysis to server:', error);
     }

@@ -1,13 +1,17 @@
 import path from 'path';
+import { pathToFileURL } from 'url';
+import dotenv from 'dotenv';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
+    // Load local .env into process.env so the Vite plugin can access server keys
+    dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
     const env = loadEnv(mode, '.', '');
 
     // Prefer explicit server-side keys (GEMINI_API_KEY or API_KEY).
     // Do NOT fall back to VITE_API_KEY; keys must be set in .env.local as GEMINI_API_KEY.
-    const serverApiKey = env.GEMINI_API_KEY || env.API_KEY;
+    const serverApiKey = env.GEMINI_API_KEY || env.API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY;
 
     return {
       server: {
@@ -35,6 +39,13 @@ export default defineConfig(({ mode }) => {
                     // Dynamically import the GenAI client (ESM-safe).
                     let GoogleGenAI: any = null;
                     try {
+                      // Ensure the Vite dev server process exposes the server API key
+                      // to any imported server-side modules (like services/geminiService)
+                      // by copying the resolved key into process.env for the plugin process.
+                      if (serverApiKey) {
+                        process.env.GEMINI_API_KEY = serverApiKey;
+                        process.env.API_KEY = serverApiKey;
+                      }
                       const mod = await import('@google/genai');
                       GoogleGenAI = (mod as any)?.GoogleGenAI || (mod as any) || null;
                     } catch (loadErr) {
@@ -96,12 +107,20 @@ export default defineConfig(({ mode }) => {
 
                   // Delegate to server-side analyzeApplication to ensure dev-mode respects
                   // the same per-agent prompts and enable flags as production.
-                  try {
+                    try {
                     const svcPath = path.resolve(process.cwd(), 'services', 'geminiService');
                     let svc: any = null;
-                    try { svc = await import(svcPath); } catch (e) {
-                      // Fallback to trying with .ts extension for some environments
-                      svc = await import(svcPath + '.ts');
+                    try {
+                      // Prefer the compiled .js file when available (dev server running in Node)
+                      svc = await import(pathToFileURL(svcPath + '.js').href);
+                    } catch (e1) {
+                      try {
+                        // Fallback to TypeScript source if necessary
+                        svc = await import(pathToFileURL(svcPath + '.ts').href);
+                      } catch (e2) {
+                        // Final fallback: try unresolved path (may work in some setups)
+                        svc = await import(pathToFileURL(svcPath).href);
+                      }
                     }
                     if (!svc || typeof svc.analyzeApplication !== 'function') {
                       throw new Error('analyzeApplication not found in services/geminiService');

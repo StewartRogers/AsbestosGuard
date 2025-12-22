@@ -288,11 +288,7 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
           fs => fs.employerId === data.firmAccountNumber
         );
 
-        // Debug: Log factSheets and matching details
-        console.log('NewApplicationForm: factSheets count:', factSheets.length);
-        console.log('NewApplicationForm: data.firmAccountNumber:', data.firmAccountNumber);
-        console.log('NewApplicationForm: data.firmLegalName:', data.firmLegalName);
-        console.log('NewApplicationForm: matchedFactSheet:', matchedFactSheet ? 'Found' : 'Not Found', matchedFactSheet);
+        // Debug logs removed for production; use a logger if needed
 
         // Run AI Analysis before submitting
         try {
