@@ -73,7 +73,7 @@ async function getContainerClient(containerName: string): Promise<ContainerClien
   // Create container if it doesn't exist
   try {
     await containerClient.createIfNotExists({
-      access: 'private'
+      access: undefined
     });
   } catch (error) {
     console.warn(`Container ${containerName} may already exist:`, error);

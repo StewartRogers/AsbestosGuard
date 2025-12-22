@@ -1010,7 +1010,6 @@ Return ONLY a JSON object with NO explanatory text:
     return {
       ...result,
       sources,
-      executedAt: executionTimestamp,
       debug: Object.assign(
         {
           prompt: factPrompt,
@@ -1039,9 +1038,8 @@ Return ONLY a JSON object with NO explanatory text:
       factSheetSummary: "Comparison unavailable due to error.",
       webPresenceSummary: "Analysis failed.",
       sources: [],
-      executedAt: executionTimestamp,
       debug: {
-        prompt: factPrompt,
+        prompt: "Analysis failed before prompt creation",
         rawResponse: error instanceof Error ? error.message : "Unknown error",
         executedAt: executionTimestamp
       }
