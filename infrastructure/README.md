@@ -16,13 +16,23 @@ The Bicep templates automatically create and configure all Azure resources neede
 ## Files
 
 - `main.bicep` - Main template defining all resources
-- `main.parameters.json` - Example parameters file
+- `main.parameters.json` - Example parameters file (⚠️ **Template only** - update with your values before use)
 
 ## Quick Start
 
 ### 1. Update Parameters
 
-Edit `main.parameters.json`:
+**Important:** The `main.parameters.json` file is a template. Copy it and update with your actual values:
+
+```bash
+# Copy the template (optional - you can edit in place)
+cp main.parameters.json main.parameters.local.json
+
+# Edit with your actual values
+# Replace REPLACE_WITH_YOUR_GEMINI_API_KEY with your real API key
+```
+
+Edit the parameters file:
 
 ```json
 {
@@ -32,6 +42,8 @@ Edit `main.parameters.json`:
   "appServicePlanSku": { "value": "B1" }
 }
 ```
+
+**Note:** Never commit files containing real API keys to version control.
 
 ### 2. Deploy Infrastructure
 

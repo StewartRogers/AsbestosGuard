@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
+COPY tsconfig.json ./
 
 # Install dependencies
 RUN npm ci
@@ -12,8 +13,11 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the frontend
 RUN npm run build
+
+# Compile TypeScript server
+RUN npx tsc server.ts --module ESNext --target ES2020 --moduleResolution node --esModuleInterop --skipLibCheck
 
 # Production stage
 FROM node:18-alpine
