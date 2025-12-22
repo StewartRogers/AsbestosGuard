@@ -57,6 +57,18 @@ const getApplicationPath = (filename: string) => path.join(APPLICATIONS_DIR, `${
 const getFactSheetPath = (filename: string) => path.join(FACT_SHEETS_DIR, `${filename}.json`);
 const getAnalysisPath = (filename: string) => path.join(ANALYSIS_DIR, `${filename}.json`);
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  const health = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: IS_PRODUCTION ? 'production' : 'development',
+    storageMode: USE_AZURE_STORAGE ? 'azure' : 'local',
+    uptime: process.uptime()
+  };
+  res.status(200).json(health);
+});
+
 // Policies endpoint: read .docx files from ./docs and extract text
 app.get('/api/policies', async (req, res) => {
   try {

@@ -1,0 +1,44 @@
+# Docker ignore file for AsbestosGuard
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+.env.local
+.env.production
+*.local
+
+# Build artifacts
+dist
+dist-ssr
+deploy.zip
+deploy-package
+
+# Development files
+.vscode
+.idea
+.DS_Store
+
+# Documentation
+*.md
+!README.md
+
+# Test files
+__tests__
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+
+# CI/CD
+.github
+
+# Temporary files
+tmp
+temp
+*.log
+
+# Azure deployment scripts (not needed in container)
+*.ps1
+deploy*.cmd
+.deployment
