@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LicenseApplication, ApplicationStatus, AIAnalysisResult, EmployerFactSheet } from '../../types';
 import { Button, Card, Badge } from '../../components/UI';
 import { ApplicationSummary } from '../../components/ApplicationSummary';
-import { analyzeApplication } from '../../services/geminiService';
+import { analyzeApplicationServer } from '../../services/geminiClient';
 import { ArrowLeft, BrainCircuit, CheckCircle, XCircle, FileText, AlertTriangle, MessageSquare, Building2, TrendingUp, AlertOctagon, Globe, ExternalLink, Database, Terminal } from 'lucide-react';
 import { saveAnalysis, getAnalysis, deleteAnalysis } from '../../services/apiService';
 
@@ -141,7 +141,7 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
     try {
       setIsAnalyzing(true);
       // Pass matched fact sheet to the analysis service
-      const result = await analyzeApplication(application, matchedFactSheet);
+      const result = await analyzeApplicationServer(application, matchedFactSheet);
       // Normalize incoming result to a consistent shape
       setAnalysisResult(normalizeAnalysis(result));
     } catch (e: any) {

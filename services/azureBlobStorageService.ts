@@ -1,5 +1,12 @@
 import { BlobServiceClient, StorageSharedKeyCredential, ContainerClient } from '@azure/storage-blob';
 import { DefaultAzureCredential } from '@azure/identity';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Ensure local .env is loaded when this module initializes (server may import
+// this file before the main app loads dotenv). This guarantees env vars are
+// available during module initialization in development.
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 // Azure Storage configuration from environment variables
 const AZURE_STORAGE_ACCOUNT = process.env.AZURE_STORAGE_ACCOUNT_NAME || '';

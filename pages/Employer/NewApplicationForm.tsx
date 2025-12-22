@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LicenseApplication, ApplicationStatus, LicenseType, Associate, ApplicationWizardData, EmployerFactSheet } from '../../types';
 import { Button, Input, Select, Card, Badge } from '../../components/UI';
 import { ApplicationSummary } from '../../components/ApplicationSummary';
-import { analyzeApplication } from '../../services/geminiService';
+import { analyzeApplicationServer } from '../../services/geminiClient';
 import { 
   ArrowLeft, ChevronRight, ChevronLeft, Check, AlertCircle, 
   HelpCircle, Phone, Mail, UserPlus, Trash2, Building, Calendar, Hash, Info 
@@ -296,7 +296,7 @@ const NewApplicationForm: React.FC<NewApplicationFormProps> = ({ onSubmit, onCan
 
         // Run AI Analysis before submitting
         try {
-          const analysis = await analyzeApplication(newApp, matchedFactSheet);
+          const analysis = await analyzeApplicationServer(newApp, matchedFactSheet);
           newApp.aiAnalysis = JSON.stringify(analysis);
         } catch (e) {
           console.error("AI Analysis failed on submit", e);
