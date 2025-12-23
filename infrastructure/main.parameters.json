@@ -9,7 +9,7 @@
       "value": "dev"
     },
     "geminiApiKey": {
-      "value": "REPLACE_WITH_YOUR_GEMINI_API_KEY"
+      "value": "AIzaSyBgNKA9hIs0NQVWw7enC8zCF071GzFcSHQ"
     },
     "appServicePlanSku": {
       "value": "B1"

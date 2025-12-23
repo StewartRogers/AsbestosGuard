@@ -449,7 +449,7 @@ app.delete('/api/data/:key', async (req, res) => {
 
 // Serve React app for all other routes (must be before app.listen)
 if (IS_PRODUCTION) {
-  app.get('*', (req, res) => {
+  app.use((req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
   });
 }

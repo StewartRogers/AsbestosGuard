@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+      "build": "vite build && tsc -p tsconfig.json",
     "preview": "vite preview",
     "server": "tsx server.ts",
-    "start": "npm-run-all --parallel dev server",
+    "start": "node server.js",
+    "start:dev": "npm-run-all --parallel dev server",
     "start:prod": "node server.js"
   },
   "dependencies": {
@@ -24,14 +25,14 @@
     "mammoth": "^1.11.0",
     "path-browserify": "^1.0.1",
     "react": "^19.2.1",
-    "react-dom": "^19.2.1"
+    "react-dom": "^19.2.1",
+    "npm-run-all": "^4.1.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
-    "npm-run-all": "^4.1.5",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",

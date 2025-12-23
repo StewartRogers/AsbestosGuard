@@ -31,16 +31,29 @@ print_info() {
     echo -e "${YELLOW}→ $1${NC}"
 }
 
-# Check arguments
-if [ "$#" -ne 3 ]; then
-    print_error "Usage: $0 <resource-group> <app-name> <gemini-api-key>"
+# Load .env.local if present (export variables)
+if [ -f ".env.local" ]; then
+    set -a
+    . .env.local
+    set +a
+    print_info "Loaded environment variables from .env.local"
+fi
+
+# Check arguments: gemini API key is optional (can come from .env.local or env)
+if [ "$#" -lt 2 ]; then
+    print_error "Usage: $0 <resource-group> <app-name> [gemini-api-key]"
     echo "Example: $0 my-resource-group asbestosguard-webapp YOUR_API_KEY"
     exit 1
 fi
 
 RESOURCE_GROUP=$1
 WEBAPP_NAME=$2
-GEMINI_API_KEY=$3
+GEMINI_API_KEY=${3:-${GEMINI_API_KEY:-}}
+
+if [ -z "$GEMINI_API_KEY" ]; then
+    print_error "GEMINI API key not provided. Provide as 3rd arg or set GEMINI_API_KEY in .env.local or environment."
+    exit 1
+fi
 
 # Check prerequisites
 print_header "Checking Prerequisites"

@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { LicenseApplication, ApplicationStatus } from '../../types';
+import type { LicenseApplication } from '../../types';
+import * as Types from '../../types';
 import { Card, Button, Badge } from '../../components/UI';
 import { Plus, Clock, FileText, CheckCircle, XCircle, AlertCircle, Search, User } from 'lucide-react';
 
@@ -11,13 +12,13 @@ interface EmployerDashboardProps {
   onViewClick: (app: LicenseApplication) => void;
 }
 
-const StatusBadge = ({ status }: { status: ApplicationStatus }) => {
+const StatusBadge = ({ status }: { status: Types.ApplicationStatus }) => {
   switch (status) {
-    case ApplicationStatus.APPROVED: return <Badge color="green">Approved</Badge>;
-    case ApplicationStatus.REJECTED: return <Badge color="red">Rejected</Badge>;
-    case ApplicationStatus.UNDER_REVIEW: return <Badge color="blue">Under Review</Badge>;
-    case ApplicationStatus.SUBMITTED: return <Badge color="blue">Submitted</Badge>;
-    case ApplicationStatus.NEEDS_INFO: return <Badge color="yellow">Action Required</Badge>;
+    case Types.ApplicationStatus.APPROVED: return <Badge color="green">Approved</Badge>;
+    case Types.ApplicationStatus.REJECTED: return <Badge color="red">Rejected</Badge>;
+    case Types.ApplicationStatus.UNDER_REVIEW: return <Badge color="blue">Under Review</Badge>;
+    case Types.ApplicationStatus.SUBMITTED: return <Badge color="blue">Submitted</Badge>;
+    case Types.ApplicationStatus.NEEDS_INFO: return <Badge color="yellow">Action Required</Badge>;
     default: return <Badge color="gray">Draft</Badge>;
   }
 };
