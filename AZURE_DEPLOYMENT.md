@@ -16,6 +16,38 @@ The application is deployed as:
 - **Data Storage**: Azure Blob Storage - stores applications, fact sheets, analysis results, and policy documents
 - **Authentication**: Uses Azure Managed Identity for secure access to Blob Storage (recommended for production)
 
+### Azure AI Foundry Agents Integration
+
+Use Microsoft Azure AI Foundry (new portal) to host the three AI agents and call them from the app.
+
+1. Create a Foundry project in https://ai.azure.com and deploy your preferred models.
+2. Create three agents in the project (e.g., Agent 1, Agent 2, Agent 3). Note each agent’s `assistant_id`.
+3. Copy the Project endpoint from the Foundry portal. It looks like:
+   `https://<your_ai_service_name>.services.ai.azure.com/api/projects/<your_project_name>`
+4. Configure these environment variables in `.env.local` (server side):
+   - `AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=<project-endpoint>`
+   - `FOUNDRY_AGENT_1_ID=<assistant_id_for_agent1>`
+   - `FOUNDRY_AGENT_2_ID=<assistant_id_for_agent2>`
+   - `FOUNDRY_AGENT_3_ID=<assistant_id_for_agent3>`
+   - Optional: `AGENT_TOKEN=<Bearer token>`; if omitted, the server uses `@azure/identity` to obtain a token (`DefaultAzureCredential`).
+
+Server routes added:
+
+- `POST /__api/foundry/:agentKey/chat` → body `{ prompt: string }`
+  - `agentKey` in `{ agent1 | agent2 | agent3 }`
+  - Returns `{ reply: string }`.
+
+Quick local test after env setup:
+
+```bash
+pnpm exec tsx tools/test-foundry-agent.ts agent1 "Hello Foundry"
+```
+
+References:
+
+- Quickstart (REST): https://learn.microsoft.com/azure/ai-foundry/agents/quickstart?view=foundry-classic
+- App Service tutorial with Foundry Agents (Node.js): https://learn.microsoft.com/azure/app-service/tutorial-ai-agent-web-app-langgraph-foundry-node
+
 ## Part 1: Azure Resource Setup
 
 You've already created:

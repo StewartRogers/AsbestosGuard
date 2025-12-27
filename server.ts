@@ -6,6 +6,7 @@ import mammoth from 'mammoth';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import * as azureStorage from './services/azureBlobStorageService.js';
+import * as foundryService from './services/foundryService.js';
 
 // ES module __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -493,5 +494,19 @@ app.post('/__api/gemini/analyze', async (req, res) => {
   } catch (err) {
     console.error('AI proxy error:', err);
     return res.status(500).json({ error: 'Internal server error in AI proxy.' });
+  }
+});
+
+// Foundry Agents chat endpoint: route to one of three agents
+app.post('/__api/foundry/:agentKey/chat', async (req, res) => {
+  try {
+    const { agentKey } = req.params as { agentKey: 'agent1' | 'agent2' | 'agent3' };
+    const { prompt } = req.body || {};
+    if (!prompt) return res.status(400).json({ error: 'Missing prompt' });
+    const result = await foundryService.chatWithAgent(agentKey, prompt);
+    return res.json(result);
+  } catch (err) {
+    console.error('Foundry chat error:', err);
+    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });

@@ -10,7 +10,10 @@
     "server": "tsx server.ts",
     "start": "node server.js",
     "start:dev": "npm-run-all --parallel dev server",
-    "start:prod": "node server.js"
+    "start:prod": "node server.js",
+    "test:foundry": "tsx tools/test-foundry-agent.ts",
+    "discover:agents": "tsx tools/discover-foundry-agents.ts",
+    "get:agent-id": "tsx tools/get-agent-id.ts"
   },
   "dependencies": {
     "@azure/identity": "^4.13.0",
