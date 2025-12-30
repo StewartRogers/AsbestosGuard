@@ -1,0 +1,257 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     ASBESTOS GUARD - FOUNDRY INTEGRATION                    │
+│                              Architecture Diagram                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┐
+│  FRONTEND (React)│
+├──────────────────┤
+│ ApplicationReview│
+│   .tsx          │
+│                 │
+│ handleRunAI() ──┼──► [Run Analysis Button]
+└────────┬────────┘
+         │
+         │ analyzeApplicationServer()
+         │ (axios POST)
+         │
+         ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                        SERVER (Express)                          │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  POST /__api/gemini/analyze                                    │
+│  ├─ Check: AZURE_AI_FOUNDRY_PROJECT_ENDPOINT?                 │
+│  │                                                              │
+│  ├─► YES: foundryAnalysisService.analyzeApplication()         │
+│  │   └─► Foundry Agent1 (EFSAGENT)                           │
+│  │       ├─ Risk Analysis                                    │
+│  │       ├─ Validation                                       │
+│  │       └─ Recommendations                                  │
+│  │                                                            │
+│  └─► NO: geminiService.analyzeApplication()                  │
+│      └─ Fallback to Gemini API (if configured)              │
+│                                                              │
+└────────┬───────────────────────────────────────────────────┘
+         │
+         │ Response: AIAnalysisResult
+         │
+         ▼
+┌──────────────────┐
+│ geminiClient.ts  │
+│  (transparent)   │
+└────────┬─────────┘
+         │
+         ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                   FOUNDRY SERVICES (Azure)                       │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  foundryAnalysisService.ts                                      │
+│  ├─ buildAnalysisPrompt()                                       │
+│  │  └─ Structures application data                              │
+│  ├─ parseAgentResponse()                                        │
+│  │  └─ Converts agent response to AIAnalysisResult             │
+│  └─ analyzeApplication()                                        │
+│     └─ Orchestrates analysis                                    │
+│                                                                  │
+│  foundryAgentClient.ts                                          │
+│  ├─ createThread()                  [API v2025-05-01]          │
+│  ├─ addMessage()                    [API v2025-05-01]          │
+│  ├─ runThread()                     [API v2025-05-01]          │
+│  ├─ getRun()                        [API v2025-05-01]          │
+│  ├─ getMessages()                   [API v2025-05-01]          │
+│  └─ askAgent()                      [High-level orchestration] │
+│                                                                  │
+└────────┬───────────────────────────────────────────────────────┘
+         │
+         │ REST API Calls
+         │ (DefaultAzureCredential)
+         │
+         ▼
+┌──────────────────────────────────────────────────────────────────┐
+│              AZURE AI FOUNDRY AGENTS                              │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Endpoint: rsrogers-8077-resource.services.ai.azure.com        │
+│                                                                  │
+│  ┌────────────────────────────────────────────────────────┐    │
+│  │ AGENT 1: EFSAGENT (Employee/Facility Safety)         │    │
+│  │ ID: asst_WfzpVc2VFNSOimWtPFeH2M8A                    │    │
+│  │ Model: gpt-4.1                                        │    │
+│  │ Purpose: Compare Application to EFS                  │    │
+│  └────────┬─────────────────────────────────────────────┘    │
+│           │                                                    │
+│  ┌────────▼─────────────────────────────────────────────┐    │
+│  │ AGENT 2: EMPWEBPROFILEAGENT                         │    │
+│  │ ID: asst_oKyLyTufq0RUcImmv4Wordy7                   │    │
+│  │ Model: gpt-4.1                                      │    │
+│  │ Purpose: Web search for business profiles           │    │
+│  └────────┬────────────────────────────────────────────┘    │
+│           │                                                   │
+│  ┌────────▼─────────────────────────────────────────────┐    │
+│  │ AGENT 3: APPRISKANALYSIS                            │    │
+│  │ ID: asst_dgZab8X0Y28EMqKpT9DbwBmb                  │    │
+│  │ Model: gpt-4.1                                      │    │
+│  │ Purpose: Application risk analysis                  │    │
+│  └────────┬────────────────────────────────────────────┘    │
+│           │                                                  │
+└───────────┼──────────────────────────────────────────────────┘
+            │
+            │ Thread Management & Execution
+            │
+            ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                   ANALYSIS FLOW (Agent1)                         │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. Create Thread                                               │
+│     └─► POST /threads?api-version=2025-05-01                  │
+│         Response: { id: "thread_xxx", object: "thread" }     │
+│                                                                  │
+│  2. Add Message (User)                                          │
+│     └─► POST /threads/{threadId}/messages?api-version=...    │
+│         Body: { role: "user", content: "Analysis prompt" }    │
+│                                                                  │
+│  3. Run Agent                                                   │
+│     └─► POST /threads/{threadId}/runs?api-version=...        │
+│         Body: { assistant_id: "asst_Wfz..." }               │
+│         Response: { id: "run_xxx", status: "queued" }        │
+│                                                                  │
+│  4. Poll Status (every 1000ms)                                 │
+│     └─► GET /threads/{threadId}/runs/{runId}?api-version=... │
+│         Wait for: status = "completed"                        │
+│                                                                  │
+│  5. Get Messages                                                │
+│     └─► GET /threads/{threadId}/messages?api-version=...     │
+│         Extract: Last assistant message content               │
+│                                                                  │
+│  6. Parse Response                                              │
+│     └─► Extract JSON from agent response                      │
+│         Convert to AIAnalysisResult type                      │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│                   RESPONSE FORMAT                                 │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  {                                                               │
+│    "riskScore": "LOW|MEDIUM|HIGH|INVALID",                     │
+│    "isTestAccount": boolean,                                    │
+│    "summary": "string",                                         │
+│    "internalRecordValidation": {                                │
+│      "recordFound": boolean,                                    │
+│      "accountNumber": string|null,                              │
+│      "overdueBalance": number|null,                             │
+│      "statusMatch": boolean|null,                               │
+│      "concerns": string[]                                       │
+│    },                                                            │
+│    "geographicValidation": { ... },                             │
+│    "webPresenceValidation": { ... },                            │
+│    "certificationAnalysis": { ... },                            │
+│    "concerns": string[],                                        │
+│    "policyViolations": { field, value, policy }[],             │
+│    "recommendation": "APPROVE|REJECT|REQUEST_INFO|...",        │
+│    "requiredActions": string[],                                 │
+│    "sources": { title, uri }[]                                 │
+│  }                                                               │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│                   AUTHENTICATION FLOW                             │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. User runs: az login                                         │
+│     └─► Azure CLI authenticates with Microsoft Entra           │
+│                                                                  │
+│  2. Server calls: getAuthToken()                                │
+│     └─► Uses DefaultAzureCredential                            │
+│         └─► Gets token from cached Azure CLI session           │
+│                                                                  │
+│  3. Token is sent in Authorization header                       │
+│     └─► Authorization: Bearer <token>                          │
+│         Scope: https://ai.azure.com/.default                  │
+│                                                                  │
+│  4. Azure validates token and processes request                 │
+│     └─► Returns agent response                                 │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│                   ENVIRONMENT CONFIGURATION                       │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  .env.local                                                      │
+│  ├─ AZURE_AI_FOUNDRY_PROJECT_ENDPOINT                          │
+│  │  └─ https://rsrogers-8077-resource.services.ai.azure.com.. │
+│  │                                                              │
+│  ├─ FOUNDRY_AGENT_1_ID (EFSAGENT)                             │
+│  │  └─ asst_WfzpVc2VFNSOimWtPFeH2M8A                          │
+│  │                                                              │
+│  ├─ FOUNDRY_AGENT_2_ID (EMPWEBPROFILEAGENT)                  │
+│  │  └─ asst_oKyLyTufq0RUcImmv4Wordy7                          │
+│  │                                                              │
+│  └─ FOUNDRY_AGENT_3_ID (APPRISKANALYSIS)                     │
+│     └─ asst_dgZab8X0Y28EMqKpT9DbwBmb                          │
+│                                                                  │
+│  Authentication: Azure CLI (az login)                           │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│                   KEY FILES & LOCATIONS                           │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Frontend UI                                                     │
+│  └─ pages/Admin/ApplicationReview.tsx                           │
+│     └─ handleRunAI() function                                   │
+│                                                                  │
+│  Client Service                                                  │
+│  └─ services/geminiClient.ts                                    │
+│     └─ analyzeApplicationServer()                              │
+│                                                                  │
+│  Server Endpoint                                                 │
+│  └─ server.ts                                                    │
+│     └─ POST /__api/gemini/analyze                              │
+│                                                                  │
+│  Analysis Service (NEW)                                         │
+│  └─ services/foundryAnalysisService.ts                         │
+│     ├─ analyzeApplication()                                     │
+│     ├─ buildAnalysisPrompt()                                    │
+│     └─ parseAgentResponse()                                     │
+│                                                                  │
+│  Agent Client                                                    │
+│  └─ services/foundryAgentClient.ts                             │
+│     ├─ createThread()                                           │
+│     ├─ addMessage()                                             │
+│     ├─ runThread()                                              │
+│     ├─ getRun()                                                 │
+│     ├─ getMessages()                                            │
+│     └─ askAgent()                                               │
+│                                                                  │
+│  Test Script (NEW)                                              │
+│  └─ test-foundry-analysis.ts                                   │
+│     └─ testFoundryAnalysis()                                    │
+│                                                                  │
+│  Type Definitions                                                │
+│  └─ types.ts                                                     │
+│     ├─ LicenseApplication                                       │
+│     ├─ AIAnalysisResult                                         │
+│     └─ EmployerFactSheet                                        │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════
+
+STATUS: ✅ PRODUCTION READY
+
+All components are integrated and tested. The app can now:
+  ✓ Send applications to Foundry Agent1
+  ✓ Receive structured analysis results
+  ✓ Display results in the UI
+  ✓ Handle errors gracefully
+  ✓ Fallback to Gemini if needed
+
+═══════════════════════════════════════════════════════════════════

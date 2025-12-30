@@ -461,39 +461,40 @@ app.listen(PORT, () => {
   console.log(`Storage: ${USE_AZURE_STORAGE ? 'Azure Blob Storage' : 'Local File System'}`);
 });
 
-// Simple proxy endpoint for AI analysis diagnostics.
-// If an API key is configured in the server environment, you can extend
-// this endpoint to call the actual model provider. For now it returns
-// helpful messages guiding local configuration.
+// AI Analysis endpoint - uses Foundry Agents
 app.post('/__api/gemini/analyze', async (req, res) => {
   try {
-    const key = process.env.API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.OPENAI_API_KEY;
-    if (!key) {
-      return res.status(500).json({ error: 'AI API key not configured on the server. Set environment variable API_KEY, GEMINI_API_KEY, GOOGLE_API_KEY, or OPENAI_API_KEY and restart the server.' });
+    const { application, factSheet } = req.body || {};
+    if (!application) {
+      return res.status(400).json({ error: 'Request must include { application, factSheet? } in the JSON body.' });
     }
 
-    // Defer to the shared server-side analysis implementation if available.
-      try {
-        // Dynamically import the analysis function to work in ESM runtime
-        const mod = await import('./services/geminiService');
-        const analyzeApplication = (mod as any)?.analyzeApplication ?? (mod as any)?.default?.analyzeApplication;
+    const foundryEndpoint = process.env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT;
+    if (!foundryEndpoint) {
+      return res.status(500).json({ error: 'Foundry not configured. Set AZURE_AI_FOUNDRY_PROJECT_ENDPOINT in .env.local' });
+    }
 
-        const { application, factSheet } = req.body || {};
-        if (!application) return res.status(400).json({ error: 'Request must include { application, factSheet? } in the JSON body.' });
-
-        if (!analyzeApplication) {
-          return res.status(500).json({ error: 'Server-side analysis function not found. Check services/geminiService export.' });
-        }
-
-        const result = await analyzeApplication(application, factSheet);
-        return res.json(result);
-      } catch (innerErr) {
-        console.error('Failed to run server-side analysis:', innerErr);
-        return res.status(500).json({ error: 'Server-side analysis failed', details: innerErr instanceof Error ? innerErr.message : String(innerErr) });
+    console.log('[server] Using Foundry Agents for analysis');
+    try {
+      const mod = await import('./services/foundryAnalysisService.js');
+      const analyzeApplication = (mod as any)?.analyzeApplication ?? (mod as any)?.default?.analyzeApplication;
+      
+      if (!analyzeApplication) {
+        return res.status(500).json({ error: 'Foundry analysis service not found' });
       }
+      
+      const result = await analyzeApplication(application, factSheet);
+      return res.json(result);
+    } catch (innerErr) {
+      console.error('Foundry analysis failed:', innerErr);
+      return res.status(500).json({ 
+        error: 'Foundry analysis failed', 
+        details: innerErr instanceof Error ? innerErr.message : String(innerErr) 
+      });
+    }
   } catch (err) {
-    console.error('AI proxy error:', err);
-    return res.status(500).json({ error: 'Internal server error in AI proxy.' });
+    console.error('AI analysis error:', err);
+    return res.status(500).json({ error: 'Internal server error in AI analysis.' });
   }
 });
 

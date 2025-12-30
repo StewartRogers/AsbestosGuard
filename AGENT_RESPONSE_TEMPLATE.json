@@ -1,0 +1,38 @@
+{
+  "riskScore": "LOW",
+  "isTestAccount": false,
+  "summary": "Brief assessment of the application risk level based on provided data",
+  "internalRecordValidation": {
+    "recordFound": true,
+    "accountNumber": "FS-12345",
+    "overdueBalance": 0,
+    "statusMatch": true,
+    "concerns": []
+  },
+  "geographicValidation": {
+    "addressExistsInBC": true,
+    "addressConflicts": [],
+    "verifiedLocation": "Vancouver, BC"
+  },
+  "webPresenceValidation": {
+    "companyFound": true,
+    "relevantIndustry": true,
+    "searchSummary": "Company operates in asbestos abatement sector based on available information"
+  },
+  "certificationAnalysis": {
+    "totalWorkers": 12,
+    "certifiedWorkers": 10,
+    "complianceRatio": 0.833,
+    "meetsRequirement": true
+  },
+  "concerns": [],
+  "policyViolations": [],
+  "recommendation": "APPROVE",
+  "requiredActions": [],
+  "sources": [
+    {
+      "title": "Foundry Agent Analysis",
+      "uri": ""
+    }
+  ]
+}

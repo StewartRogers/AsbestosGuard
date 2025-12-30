@@ -1,0 +1,331 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║            FOUNDRY AGENT1 CONFIGURATION - QUICK REFERENCE                 ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 1. WHAT TO CONFIGURE IN FOUNDRY PORTAL                                    │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Agent Details:
+  Name: EFSAGENT
+  ID: asst_WfzpVc2VFNSOimWtPFeH2M8A
+  Model: gpt-4 or gpt-4-turbo
+  Temperature: 0.1
+  Max Tokens: 2000
+  Top P: 0.95
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 2. CRITICAL: SYSTEM PROMPT                                                │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Copy and paste this EXACTLY into the agent's System Prompt field:
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│ You are a regulatory compliance analyst for asbestos work licensing.      │
+│                                                                          │
+│ Your task: Analyze license applications and return ONLY valid JSON      │
+│ with NO additional text.                                                │
+│                                                                          │
+│ IMPORTANT RULES:                                                         │
+│ 1. ALWAYS respond with ONLY a JSON object                               │
+│ 2. NO explanations, NO markdown, NO code blocks                         │
+│ 3. Start with { and end with }                                          │
+│ 4. Double-check all quotes are properly escaped                         │
+│ 5. All string values must be in quotes                                  │
+│ 6. All boolean values must be true/false (lowercase)                    │
+│ 7. All numbers must NOT be quoted                                       │
+│                                                                          │
+│ When analyzing an application, you will receive application details.    │
+│                                                                          │
+│ Return this JSON structure EXACTLY (valid JSON only):                   │
+│ {                                                                        │
+│   "riskScore": "LOW",                                                   │
+│   "isTestAccount": false,                                               │
+│   "summary": "Analysis summary here",                                   │
+│   "internalRecordValidation": {                                         │
+│     "recordFound": true,                                                │
+│     "accountNumber": "FS-12345",                                        │
+│     "overdueBalance": 0,                                                │
+│     "statusMatch": true,                                                │
+│     "concerns": []                                                      │
+│   },                                                                     │
+│   "geographicValidation": {                                             │
+│     "addressExistsInBC": true,                                          │
+│     "addressConflicts": [],                                             │
+│     "verifiedLocation": "BC"                                            │
+│   },                                                                     │
+│   "webPresenceValidation": {                                            │
+│     "companyFound": true,                                               │
+│     "relevantIndustry": true,                                           │
+│     "searchSummary": "Company operates in asbestos abatement"           │
+│   },                                                                     │
+│   "certificationAnalysis": {                                            │
+│     "totalWorkers": 10,                                                 │
+│     "certifiedWorkers": 8,                                              │
+│     "complianceRatio": 0.8,                                             │
+│     "meetsRequirement": true                                            │
+│   },                                                                     │
+│   "concerns": [],                                                       │
+│   "policyViolations": [],                                               │
+│   "recommendation": "APPROVE",                                          │
+│   "requiredActions": [],                                                │
+│   "sources": [{"title": "Foundry Agent Analysis", "uri": ""}]           │
+│ }                                                                        │
+└──────────────────────────────────────────────────────────────────────────┘
+
+⚠️  DO NOT MODIFY THIS - PASTE EXACTLY AS IS
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 3. INPUT FROM APP → AGENT                                                 │
+└────────────────────────────────────────────────────────────────────────────┘
+
+App sends this format:
+
+  Analyze this asbestos work license application:
+  
+  Company: SafeRemoval Construction Ltd.
+  Account Number: FS-12345
+  Workers: 12
+  Years in Business: 6
+  Has Internal Record: Yes
+  Overdue Balance: $0
+  
+  Certifications:
+  - Level 1-4 Certified: 10
+  - Level 3 Certified: 2
+  
+  History Flags:
+  - Refused in Last 7 Years: No
+  - Enforcement Action: No
+  - Non-Compliance: No
+  - Suspended: No
+  
+  Compliance Acknowledgements:
+  - Outstanding Amounts: Acknowledged
+  - Compliance: Acknowledged
+  - Enforcement: Acknowledged
+  
+  Respond ONLY with valid JSON (no other text):
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 4. EXPECTED OUTPUT FROM AGENT                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Agent MUST return ONLY valid JSON (nothing else):
+
+  {
+    "riskScore": "LOW",
+    "isTestAccount": false,
+    "summary": "Company meets all requirements with clean record",
+    "internalRecordValidation": {
+      "recordFound": true,
+      "accountNumber": "FS-12345",
+      "overdueBalance": 0,
+      "statusMatch": true,
+      "concerns": []
+    },
+    "geographicValidation": {
+      "addressExistsInBC": true,
+      "addressConflicts": [],
+      "verifiedLocation": "Vancouver, BC"
+    },
+    "webPresenceValidation": {
+      "companyFound": true,
+      "relevantIndustry": true,
+      "searchSummary": "Company operates in asbestos abatement sector"
+    },
+    "certificationAnalysis": {
+      "totalWorkers": 12,
+      "certifiedWorkers": 10,
+      "complianceRatio": 0.833,
+      "meetsRequirement": true
+    },
+    "concerns": [],
+    "policyViolations": [],
+    "recommendation": "APPROVE",
+    "requiredActions": [],
+    "sources": [{"title": "Foundry Agent Analysis", "uri": ""}]
+  }
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 5. FIELD REFERENCE                                                        │
+└────────────────────────────────────────────────────────────────────────────┘
+
+  riskScore
+    Type: string
+    Values: "LOW", "MEDIUM", "HIGH"
+    Example: "MEDIUM"
+
+  isTestAccount
+    Type: boolean
+    Values: true or false
+    Example: false
+
+  summary
+    Type: string
+    Example: "Application meets requirements"
+
+  internalRecordValidation.recordFound
+    Type: boolean
+    Example: true (if fact sheet exists)
+
+  internalRecordValidation.accountNumber
+    Type: string or null
+    Example: "FS-12345"
+
+  internalRecordValidation.overdueBalance
+    Type: number or null
+    Example: 0, 500, or null
+
+  internalRecordValidation.statusMatch
+    Type: boolean
+    Example: true (if account numbers match)
+
+  internalRecordValidation.concerns
+    Type: array of strings
+    Example: []
+
+  geographicValidation.addressExistsInBC
+    Type: boolean
+    Example: true
+
+  geographicValidation.addressConflicts
+    Type: array of strings
+    Example: []
+
+  geographicValidation.verifiedLocation
+    Type: string or null
+    Example: "Vancouver, BC"
+
+  webPresenceValidation.companyFound
+    Type: boolean
+    Example: true
+
+  webPresenceValidation.relevantIndustry
+    Type: boolean
+    Example: true (if asbestos-related)
+
+  webPresenceValidation.searchSummary
+    Type: string
+    Example: "Company operates in asbestos abatement"
+
+  certificationAnalysis.totalWorkers
+    Type: number
+    Example: 12
+
+  certificationAnalysis.certifiedWorkers
+    Type: number
+    Example: 10
+
+  certificationAnalysis.complianceRatio
+    Type: number
+    Example: 0.833 (10/12)
+
+  certificationAnalysis.meetsRequirement
+    Type: boolean
+    Example: true
+
+  concerns
+    Type: array of strings
+    Example: ["Insurance expires in 3 months"]
+
+  policyViolations
+    Type: array
+    Example: []
+
+  recommendation
+    Type: string
+    Values: "APPROVE", "REJECT", "REQUEST_INFO", "MANUAL_REVIEW_REQUIRED"
+    Example: "APPROVE"
+
+  requiredActions
+    Type: array of strings
+    Example: ["Renew insurance", "Verify certifications"]
+
+  sources
+    Type: array of objects
+    Example: [{"title": "Foundry Agent Analysis", "uri": ""}]
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 6. TESTING STEPS                                                          │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Step 1: In Foundry Portal
+  ✓ Click "Test" or "Try it out"
+  ✓ Paste the sample input from section 3
+  ✓ Check output is ONLY JSON (no text before/after)
+  ✓ Verify JSON is valid (no syntax errors)
+
+Step 2: In Terminal
+  ✓ Run: npm run test:foundry-analysis
+  ✓ Check for "✓ Analysis completed successfully"
+  ✓ Verify results are displayed
+
+Step 3: In Browser
+  ✓ Run: npm run dev
+  ✓ Go to Admin → Applications
+  ✓ Click any application
+  ✓ Click "Run Analysis"
+  ✓ Wait 10-30 seconds
+  ✓ Verify results display in the UI
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 7. IF SOMETHING GOES WRONG                                                │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Agent returns text + JSON (not JSON only):
+  → Edit System Prompt
+  → Add "ONLY JSON" message at TOP
+  → Lower temperature to 0.05
+  → Test again
+
+Agent returns text (no JSON):
+  → Replace entire System Prompt
+  → Use EXACT text from section 2
+  → Use gpt-4 (not 3.5)
+  → Set temperature to 0.1
+  → Test again
+
+JSON has syntax errors:
+  → Check quotes and commas
+  → Validate at: https://jsonlint.com/
+  → Update System Prompt with correct example
+
+Agent not updating:
+  → Wait 10-15 seconds
+  → Refresh page
+  → Test again
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ 8. SETTINGS SUMMARY                                                       │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Foundry Portal Settings:
+  ┌─────────────────────────────────────────────────┐
+  │ Agent Name          │ EFSAGENT                  │
+  │ Model               │ gpt-4                     │
+  │ Temperature         │ 0.1                       │
+  │ Max Tokens          │ 2000                      │
+  │ Top P               │ 0.95                      │
+  │ System Prompt       │ (see section 2)           │
+  └─────────────────────────────────────────────────┘
+
+Key Points:
+  ✓ System Prompt MUST include "JSON only" instruction
+  ✓ Temperature must be LOW (0.1) for consistent output
+  ✓ Model must be gpt-4 or newer
+  ✓ Always test in Foundry portal BEFORE testing with app
+
+═════════════════════════════════════════════════════════════════════════════
+
+Ready to configure? 
+→ Open Foundry portal: https://ai.azure.com
+→ Select project: rsrogers-8077
+→ Click Agent1 (EFSAGENT)
+→ Paste System Prompt from Section 2
+→ Set Temperature to 0.1
+→ Test!
+
+═════════════════════════════════════════════════════════════════════════════
