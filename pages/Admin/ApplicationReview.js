@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ApplicationStatus } from '../../types';
 import { Button, Card, Badge } from '../../components/UI';
 import { ApplicationSummary } from '../../components/ApplicationSummary';
-import { analyzeApplicationServer } from '../../services/geminiClient';
+import { analyzeApplicationServer } from '../../services/foundryClient';
 import { ArrowLeft, BrainCircuit, CheckCircle, XCircle, AlertTriangle, MessageSquare, Building2, AlertOctagon, Terminal } from 'lucide-react';
 import { saveAnalysis, getAnalysis, deleteAnalysis } from '../../services/apiService';
 const ApplicationReview = ({ application, factSheets, onUpdate, onBack }) => {

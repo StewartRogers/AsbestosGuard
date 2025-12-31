@@ -8,8 +8,17 @@
     "environment": {
       "value": "dev"
     },
-    "geminiApiKey": {
-      "value": "AIzaSyBgNKA9hIs0NQVWw7enC8zCF071GzFcSHQ"
+    "foundryEndpoint": {
+      "value": "REPLACE_WITH_YOUR_FOUNDRY_ENDPOINT"
+    },
+    "foundryAgent1Id": {
+      "value": "REPLACE_WITH_AGENT_1_ID"
+    },
+    "foundryAgent2Id": {
+      "value": "REPLACE_WITH_AGENT_2_ID"
+    },
+    "foundryAgent3Id": {
+      "value": "REPLACE_WITH_AGENT_3_ID"
     },
     "appServicePlanSku": {
       "value": "B1"

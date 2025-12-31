@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LicenseApplication, ApplicationStatus, AIAnalysisResult, EmployerFactSheet } from '../../types';
 import { Button, Card, Badge } from '../../components/UI';
 import { ApplicationSummary } from '../../components/ApplicationSummary';
-import { analyzeApplicationServer } from '../../services/geminiClient';
+import { analyzeApplicationServer } from '../../services/foundryClient';
 import { ArrowLeft, BrainCircuit, CheckCircle, XCircle, FileText, AlertTriangle, MessageSquare, Building2, TrendingUp, AlertOctagon, Globe, ExternalLink, Database, Terminal } from 'lucide-react';
 import { saveAnalysis, getAnalysis, deleteAnalysis } from '../../services/apiService';
 

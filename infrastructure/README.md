@@ -9,7 +9,7 @@ The Bicep templates automatically create and configure all Azure resources neede
 - **Storage Account** with blob containers (applications, fact-sheets, analysis, policies, data)
 - **App Service Plan** (Linux-based, configurable tier)
 - **Web App** with Node.js 18 runtime
-- **Managed Identity** for secure access to storage
+- **Managed Identity** for secure access to storage and Azure AI Foundry
 - **Application Insights** for monitoring
 - **Role Assignments** for proper permissions
 
@@ -29,7 +29,7 @@ The Bicep templates automatically create and configure all Azure resources neede
 cp main.parameters.json main.parameters.local.json
 
 # Edit with your actual values
-# Replace REPLACE_WITH_YOUR_GEMINI_API_KEY with your real API key
+# Replace placeholder values with your Azure AI Foundry endpoint and agent IDs
 ```
 
 Edit the parameters file:
@@ -38,12 +38,15 @@ Edit the parameters file:
 {
   "appName": { "value": "asbestosguard" },
   "environment": { "value": "prod" },
-  "geminiApiKey": { "value": "YOUR_ACTUAL_API_KEY" },
+  "foundryEndpoint": { "value": "https://your-project.services.ai.azure.com/api/projects/your-project" },
+  "foundryAgent1Id": { "value": "asst_your_agent_1_id" },
+  "foundryAgent2Id": { "value": "asst_your_agent_2_id" },
+  "foundryAgent3Id": { "value": "asst_your_agent_3_id" },
   "appServicePlanSku": { "value": "B1" }
 }
 ```
 
-**Note:** Never commit files containing real API keys to version control.
+**Note:** Never commit files containing sensitive configuration to version control.
 
 ### 2. Deploy Infrastructure
 
@@ -83,7 +86,7 @@ Outputs include:
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `appName` | string | Base name for all resources (e.g., "asbestosguard") |
-| `geminiApiKey` | securestring | Google Gemini API key for AI features |
+| `foundryEndpoint` | string | Azure AI Foundry project endpoint URL |
 
 ### Optional Parameters
 
@@ -91,6 +94,9 @@ Outputs include:
 |-----------|------|---------|-------------|
 | `location` | string | Resource group location | Azure region |
 | `environment` | string | `dev` | Environment name (dev/staging/prod) |
+| `foundryAgent1Id` | string | `''` | Azure AI Foundry Agent 1 ID |
+| `foundryAgent2Id` | string | `''` | Azure AI Foundry Agent 2 ID |
+| `foundryAgent3Id` | string | `''` | Azure AI Foundry Agent 3 ID |
 | `appServicePlanSku` | string | `B1` | App Service Plan tier (F1/B1/S1/P1v2) |
 
 ## App Service Plan SKUs
@@ -138,7 +144,10 @@ Example with `appName=asbestosguard` and `environment=prod`:
 
 These are automatically set in the Web App:
 - `AZURE_STORAGE_ACCOUNT_NAME`
-- `GEMINI_API_KEY`
+- `AZURE_AI_FOUNDRY_PROJECT_ENDPOINT`
+- `FOUNDRY_AGENT_1_ID`
+- `FOUNDRY_AGENT_2_ID`
+- `FOUNDRY_AGENT_3_ID`
 - `NODE_ENV=production`
 - `WEBSITE_NODE_DEFAULT_VERSION=18-lts`
 - `SCM_DO_BUILD_DURING_DEPLOYMENT=true`
@@ -146,12 +155,12 @@ These are automatically set in the Web App:
 
 ### Security Features
 
-✅ **Managed Identity enabled** - No credentials in code
+✅ **Managed Identity enabled** - No credentials in code, used for Azure AI Foundry authentication
 ✅ **Storage permissions** - Web App has "Storage Blob Data Contributor" role
 ✅ **HTTPS only** - No unencrypted traffic
 ✅ **TLS 1.2 minimum** - Secure connections
 ✅ **Private containers** - No public blob access
-✅ **Secrets as parameters** - API keys marked as `@secure()`
+✅ **Secure configuration** - All settings encrypted at rest
 
 ## Advanced Usage
 
@@ -164,7 +173,8 @@ az deployment group create \
   --parameters \
     appName=asbestosguard \
     environment=prod \
-    geminiApiKey=YOUR_KEY \
+    foundryEndpoint=https://your-project.services.ai.azure.com/api/projects/your-project \
+    foundryAgent1Id=asst_your_agent_1_id \
     appServicePlanSku=S1
 ```
 
@@ -175,13 +185,13 @@ az deployment group create \
 az deployment group create \
   --resource-group dev-rg \
   --template-file main.bicep \
-  --parameters appName=asbestosguard environment=dev geminiApiKey=$DEV_KEY appServicePlanSku=F1
+  --parameters appName=asbestosguard environment=dev foundryEndpoint=$DEV_ENDPOINT appServicePlanSku=F1
 
 # Production
 az deployment group create \
   --resource-group prod-rg \
   --template-file main.bicep \
-  --parameters appName=asbestosguard environment=prod geminiApiKey=$PROD_KEY appServicePlanSku=S1
+  --parameters appName=asbestosguard environment=prod foundryEndpoint=$PROD_ENDPOINT appServicePlanSku=S1
 ```
 
 ### What-If Deployment (Preview Changes)
@@ -302,13 +312,13 @@ Free tier (F1) has limitations:
 
 The template handles this automatically.
 
-### Need to update API key
+### Need to update Foundry configuration
 
 ```bash
 az webapp config appsettings set \
   --resource-group my-rg \
   --name my-webapp \
-  --settings GEMINI_API_KEY=NEW_KEY
+  --settings AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=NEW_ENDPOINT
 ```
 
 ## Best Practices
@@ -328,7 +338,7 @@ After infrastructure is deployed:
 1. Deploy the application:
    ```bash
    cd ..
-   ./deploy-simple.sh my-rg my-webapp-name YOUR_API_KEY
+   ./deploy-simple.sh my-rg my-webapp-name
    ```
 
 2. Verify deployment:
@@ -339,6 +349,8 @@ After infrastructure is deployed:
 3. Set up monitoring in Azure Portal → Application Insights
 
 4. Configure GitHub Actions for automated deployments
+
+5. Review Azure AI Foundry integration: [../FOUNDRY_INTEGRATION_READY.md](../FOUNDRY_INTEGRATION_READY.md)
 
 ## Support
 

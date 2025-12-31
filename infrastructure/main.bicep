@@ -13,9 +13,17 @@ param location string = resourceGroup().location
 ])
 param environment string = 'dev'
 
-@description('The Gemini API Key for AI features')
-@secure()
-param geminiApiKey string
+@description('Azure AI Foundry Project Endpoint')
+param foundryEndpoint string
+
+@description('Azure AI Foundry Agent 1 ID')
+param foundryAgent1Id string = ''
+
+@description('Azure AI Foundry Agent 2 ID')
+param foundryAgent2Id string = ''
+
+@description('Azure AI Foundry Agent 3 ID')
+param foundryAgent3Id string = ''
 
 @description('The SKU for the App Service Plan')
 @allowed([
@@ -128,8 +136,20 @@ resource webApp 'Microsoft.Web/sites@2023-01-01' = {
           value: storageAccount.name
         }
         {
-          name: 'GEMINI_API_KEY'
-          value: geminiApiKey
+          name: 'AZURE_AI_FOUNDRY_PROJECT_ENDPOINT'
+          value: foundryEndpoint
+        }
+        {
+          name: 'FOUNDRY_AGENT_1_ID'
+          value: foundryAgent1Id
+        }
+        {
+          name: 'FOUNDRY_AGENT_2_ID'
+          value: foundryAgent2Id
+        }
+        {
+          name: 'FOUNDRY_AGENT_3_ID'
+          value: foundryAgent3Id
         }
         {
           name: 'NODE_ENV'
