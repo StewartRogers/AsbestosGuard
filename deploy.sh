@@ -136,14 +136,26 @@ while [ "$#" -gt 0 ]; do
             shift
             ;;
         --app-name)
+            if [ -z "$2" ] || [[ "$2" == --* ]]; then
+                print_error "--app-name requires a value"
+                exit 1
+            fi
             APP_NAME="$2"
             shift 2
             ;;
         --environment)
+            if [ -z "$2" ] || [[ "$2" == --* ]]; then
+                print_error "--environment requires a value (dev|staging|prod)"
+                exit 1
+            fi
             ENVIRONMENT="$2"
             shift 2
             ;;
         --location)
+            if [ -z "$2" ] || [[ "$2" == --* ]]; then
+                print_error "--location requires a value (e.g., eastus, westus2)"
+                exit 1
+            fi
             LOCATION="$2"
             shift 2
             ;;
@@ -320,7 +332,7 @@ if [ "$SKIP_BUILD" = false ]; then
     
     # Compile TypeScript server
     print_info "Compiling server..."
-    npx tsc server.ts --module ESNext --target ES2020 --moduleResolution node --esModuleInterop --skipLibCheck
+    npx tsc server.ts --module ESNext --target ES2020 --moduleResolution=node --esModuleInterop --skipLibCheck
     if [ ! -f "server.js" ]; then
         print_error "Server compilation failed - server.js not found"
         exit 1
