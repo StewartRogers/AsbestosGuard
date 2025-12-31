@@ -1,5 +1,11 @@
 # Infrastructure as Code - Bicep Templates
 
+> **⚡ Quick Start:** Use the [unified deployment script](../QUICK_DEPLOY.md) which handles infrastructure automatically:
+> ```bash
+> ./deploy.sh <resource-group> <webapp-name>
+> ```
+> This README provides detailed information about the Bicep templates for manual or advanced usage.
+
 This directory contains Azure Bicep templates for automated infrastructure provisioning.
 
 ## Overview
@@ -19,6 +25,14 @@ The Bicep templates automatically create and configure all Azure resources neede
 - `main.parameters.json` - Example parameters file (⚠️ **Template only** - update with your values before use)
 
 ## Quick Start
+
+> **💡 Recommended:** Use the [unified deployment script](../QUICK_DEPLOY.md) instead:
+> ```bash
+> ./deploy.sh my-rg my-webapp
+> ```
+> The script handles parameters automatically. Manual deployment instructions below.
+
+### Manual Deployment (Advanced)
 
 ### 1. Update Parameters
 
@@ -335,13 +349,13 @@ az webapp config appsettings set \
 
 After infrastructure is deployed:
 
-1. Deploy the application:
+1. **Deploy the application** using the unified script:
    ```bash
    cd ..
-   ./deploy-simple.sh my-rg my-webapp-name
+   ./deploy.sh my-rg my-webapp --skip-infrastructure
    ```
 
-2. Verify deployment:
+2. **Verify deployment:**
    ```bash
    curl https://my-webapp-name.azurewebsites.net/api/health
    ```

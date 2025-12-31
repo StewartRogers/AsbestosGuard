@@ -1,5 +1,24 @@
 # Azure Configuration Script for AsbestosGuard
+#
+# DEPRECATED: This script is deprecated. Infrastructure is now deployed via deploy.sh
+# Please use: ./deploy.sh <resource-group> <webapp-name>
+# See QUICK_DEPLOY.md for more information
+#
 # This script automates the setup of Azure resources: Storage Account, Web App, and Managed Identity
+
+Write-Host "⚠️  WARNING: This script is deprecated!" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "Infrastructure deployment is now handled by the unified script:" -ForegroundColor Yellow
+Write-Host "  ./deploy.sh <resource-group> <webapp-name>" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "For help: ./deploy.sh --help"
+Write-Host "Quick reference: QUICK_DEPLOY.md"
+Write-Host ""
+$continue = Read-Host "Continue with this deprecated script anyway? (y/N)"
+if ($continue -notmatch '^[Yy]$') {
+    exit 1
+}
+Write-Host ""
 
 param(
     [Parameter(Mandatory=$true)]

@@ -1,5 +1,24 @@
 #!/bin/bash
 
+# DEPRECATED: This script is deprecated in favor of the unified deploy.sh script
+# Please use: ./deploy.sh <resource-group> <webapp-name> --skip-infrastructure
+# See QUICK_DEPLOY.md for more information
+
+echo "⚠️  WARNING: This script is deprecated!"
+echo ""
+echo "Please use the new unified deployment script instead:"
+echo "  ./deploy.sh <resource-group> <webapp-name> --skip-infrastructure"
+echo ""
+echo "For help: ./deploy.sh --help"
+echo "Quick reference: QUICK_DEPLOY.md"
+echo ""
+read -p "Continue with this deprecated script anyway? (y/N) " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    exit 1
+fi
+echo ""
+
 # Simple one-command Azure deployment script for AsbestosGuard
 # Usage: ./deploy-simple.sh <resource-group> <app-name> <gemini-api-key>
 

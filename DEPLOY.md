@@ -1,65 +1,106 @@
 # AsbestosGuard - Quick Deployment Guide
 
-This guide provides the **easiest and fastest** ways to deploy AsbestosGuard to Azure.
+This guide provides the **easiest and fastest** way to deploy AsbestosGuard to Azure using our **unified deployment script**.
 
-## 🚀 Quick Start Options
+## 🚀 Quick Start - Single Unified Script (Recommended)
 
-Choose the deployment method that works best for you:
+AsbestosGuard now uses **one script** for all deployment scenarios, making Azure deployment simple and consistent.
 
-### Option 1: One-Command Deployment (Easiest)
+### First-Time Deployment (Creates Everything)
 
 ```bash
-./deploy-simple.sh <resource-group> <webapp-name> <gemini-api-key>
+./deploy.sh <resource-group> <webapp-name>
 ```
 
 **Example:**
 ```bash
-./deploy-simple.sh my-rg asbestosguard-webapp AIzaSyD...
+./deploy.sh asbestosguard-rg asbestosguard-prod-webapp
 ```
 
 This script will:
+- ✅ Validate prerequisites (Node.js, Azure CLI, required files)
+- ✅ Deploy Azure infrastructure (Storage, App Service, Application Insights)
+- ✅ Configure Managed Identity and permissions
 - ✅ Install dependencies
 - ✅ Build the application
 - ✅ Configure Azure settings
 - ✅ Deploy to Azure
 
-**Prerequisites:** Azure CLI installed and logged in
+**Time:** ~10 minutes
 
 ---
 
-### Option 2: Infrastructure + Deployment (Most Complete)
+### Refresh Deployment (Updates App Only)
 
-**Step 1: Deploy Infrastructure with Bicep**
+For subsequent deployments after infrastructure is already set up:
 
 ```bash
-# Create resource group
-az group create --name my-rg --location eastus
-
-# Deploy infrastructure
-az deployment group create \
-  --resource-group my-rg \
-  --template-file infrastructure/main.bicep \
-  --parameters appName=asbestosguard \
-               environment=prod \
-               geminiApiKey=YOUR_API_KEY
+./deploy.sh <resource-group> <webapp-name> --skip-infrastructure
 ```
 
-This creates:
-- ✅ Storage Account with containers
-- ✅ App Service Plan
-- ✅ Web App with Managed Identity
-- ✅ Application Insights
-- ✅ Role assignments (automatic storage access)
+**Example:**
+```bash
+./deploy.sh asbestosguard-rg asbestosguard-prod-webapp --skip-infrastructure
+```
 
-**Step 2: Deploy Application**
+This will:
+- ✅ Skip infrastructure deployment (use existing resources)
+- ✅ Rebuild the application
+- ✅ Deploy updated code to Azure
+
+**Time:** ~5 minutes
+
+---
+
+### Advanced Options
+
+The unified script supports additional options:
 
 ```bash
-./deploy-simple.sh my-rg asbestosguard-prod-webapp YOUR_API_KEY
+./deploy.sh <resource-group> <webapp-name> [options]
+
+Options:
+  --skip-infrastructure    Skip Bicep infrastructure deployment (use for refresh)
+  --skip-build            Skip building the application
+  --app-name <name>       Application name for Bicep (default: asbestosguard)
+  --environment <env>     Environment (dev|staging|prod, default: prod)
+  --location <location>   Azure location (default: eastus)
+  --help                  Show help message
+```
+
+**Examples:**
+
+```bash
+# Deploy to staging environment
+./deploy.sh staging-rg my-webapp --environment staging
+
+# Deploy to specific location
+./deploy.sh my-rg my-webapp --location westus2
+
+# Quick refresh (skip build if already built)
+./deploy.sh my-rg my-webapp --skip-infrastructure --skip-build
 ```
 
 ---
 
-### Option 3: GitHub Actions (Automated CI/CD)
+### Configuration (Optional)
+
+For Azure AI Foundry integration, create a `.env.local` file:
+
+```bash
+AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=https://your-project.services.ai.azure.com/api/projects/your-project
+FOUNDRY_AGENT_1_ID=asst_your_agent_1_id
+FOUNDRY_AGENT_2_ID=asst_your_agent_2_id
+FOUNDRY_AGENT_3_ID=asst_your_agent_3_id
+```
+
+The deployment script will automatically include these settings if present.
+
+---
+
+## Alternative Deployment Options
+
+### Option A: GitHub Actions (Automated CI/CD)
 
 **Setup (one-time):**
 
@@ -86,13 +127,12 @@ The workflow (`.github/workflows/azure-deploy.yml`) automatically:
 
 ---
 
-### Option 4: Docker Container Deployment
+### Option B: Docker Container Deployment
 
 **Build and run locally:**
 ```bash
 docker build -t asbestosguard .
 docker run -p 8080:8080 \
-  -e GEMINI_API_KEY=your_key \
   -e AZURE_STORAGE_ACCOUNT_NAME=your_storage \
   asbestosguard
 ```
@@ -104,89 +144,39 @@ az container create \
   --name asbestosguard \
   --image asbestosguard:latest \
   --dns-name-label asbestosguard \
-  --ports 8080 \
-  --environment-variables \
-    NODE_ENV=production \
-    GEMINI_API_KEY=your_key \
-    AZURE_STORAGE_ACCOUNT_NAME=your_storage
-```
-
-**Deploy to Azure App Service (Container):**
-```bash
-# Push to Azure Container Registry
-az acr create --name myregistry --resource-group my-rg --sku Basic
-az acr build --registry myregistry --image asbestosguard:latest .
-
-# Create web app with container
-az webapp create \
-  --resource-group my-rg \
-  --plan my-plan \
-  --name my-webapp \
-  --deployment-container-image-name myregistry.azurecr.io/asbestosguard:latest
+  --ports 8080
 ```
 
 ---
 
-### Option 5: PowerShell Script (Windows)
+## 📋 Prerequisites
 
-```powershell
-.\deploy-to-azure.ps1 `
-  -ResourceGroup "my-rg" `
-  -WebAppName "my-webapp"
-```
+Before deploying, ensure you have:
 
-Optional flags:
-- `-SkipBuild` - Skip the build step
-- `-SkipNpmInstall` - Skip npm install
+- ✅ **Node.js 18+** installed
+- ✅ **Azure CLI** installed and logged in (`az login`)
+- ✅ **Azure subscription** with permissions to create resources
+- ✅ **Git** (for version control)
 
----
-
-## 📋 Pre-Deployment Validation
-
-**Always run validation before deploying:**
-
+**Quick validation:**
 ```bash
 ./validate-deployment.sh
 ```
-
-This checks:
-- ✅ Node.js version (18+)
-- ✅ Azure CLI installed & logged in
-- ✅ Required files present
-- ✅ Project structure valid
-- ✅ Build scripts available
 
 ---
 
 ## 🔐 Required Environment Variables
 
-### For Web App (Azure Portal → Configuration → Application Settings):
+The deployment script handles most configuration automatically. For Azure AI Foundry integration, optionally configure:
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `AZURE_STORAGE_ACCOUNT_NAME` | Yes | Storage account name |
-| `GEMINI_API_KEY` | Yes | Google Gemini API key |
-| `NODE_ENV` | Yes | Set to `production` |
-| `WEBSITE_NODE_DEFAULT_VERSION` | Recommended | Set to `18-lts` |
-| `SCM_DO_BUILD_DURING_DEPLOYMENT` | Optional | Set to `true` for build on Azure |
+| Variable | Description |
+|----------|-------------|
+| `AZURE_AI_FOUNDRY_PROJECT_ENDPOINT` | Azure AI Foundry project endpoint |
+| `FOUNDRY_AGENT_1_ID` | Agent 1 assistant ID |
+| `FOUNDRY_AGENT_2_ID` | Agent 2 assistant ID |
+| `FOUNDRY_AGENT_3_ID` | Agent 3 assistant ID |
 
-### Using Managed Identity (Recommended):
-
-If using Bicep template, Managed Identity is configured automatically!
-
-Otherwise, enable manually:
-```bash
-# Enable managed identity
-az webapp identity assign \
-  --resource-group my-rg \
-  --name my-webapp
-
-# Grant storage access
-az role assignment create \
-  --assignee $(az webapp identity show --resource-group my-rg --name my-webapp --query principalId -o tsv) \
-  --role "Storage Blob Data Contributor" \
-  --scope $(az storage account show --resource-group my-rg --name mystorageaccount --query id -o tsv)
-```
+Place these in `.env.local` and the deployment script will use them automatically.
 
 ---
 
@@ -194,30 +184,16 @@ az role assignment create \
 
 **For first-time deployment:**
 
-1. **Validate environment:**
+1. **Run the unified deployment script:**
    ```bash
-   ./validate-deployment.sh
+   ./deploy.sh my-resource-group my-webapp-name
    ```
 
-2. **Deploy infrastructure with Bicep:**
-   ```bash
-   az group create --name prod-rg --location eastus
-   az deployment group create \
-     --resource-group prod-rg \
-     --template-file infrastructure/main.bicep \
-     --parameters infrastructure/main.parameters.json
-   ```
-
-3. **Deploy application:**
-   ```bash
-   ./deploy-simple.sh prod-rg asbestosguard-prod-webapp YOUR_API_KEY
-   ```
-
-4. **Set up GitHub Actions** for future deployments
+2. **Set up GitHub Actions** for future automatic deployments
 
 **For updates:**
 - Just push to main branch (if GitHub Actions is configured)
-- Or run: `./deploy-simple.sh prod-rg my-webapp YOUR_API_KEY`
+- Or run: `./deploy.sh my-rg my-webapp --skip-infrastructure`
 
 ---
 
@@ -258,22 +234,21 @@ az account show
 
 ### Deployment succeeds but app doesn't work
 - Check Application Settings in Azure Portal
-- Verify `GEMINI_API_KEY` is set
-- Verify `AZURE_STORAGE_ACCOUNT_NAME` is set
-- Check logs: `az webapp log tail`
+- Verify environment variables are set correctly
+- Check logs: `az webapp log tail --resource-group my-rg --name my-webapp`
 
 ### Storage errors
 - Verify Managed Identity has "Storage Blob Data Contributor" role
-- Or verify `AZURE_STORAGE_CONNECTION_STRING` is set correctly
+- Check that infrastructure deployment completed successfully
 
 ---
 
 ## 📚 Additional Resources
 
-- **Detailed guide:** [AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md)
-- **Infrastructure as Code:** [infrastructure/main.bicep](./infrastructure/main.bicep)
-- **GitHub Actions:** [.github/workflows/azure-deploy.yml](.github/workflows/azure-deploy.yml)
-- **Docker:** [Dockerfile](./Dockerfile)
+- **[Detailed Azure Guide](./AZURE_DEPLOYMENT.md)** - Step-by-step manual setup reference
+- **[Infrastructure as Code](./infrastructure/main.bicep)** - Bicep template details
+- **[GitHub Actions Workflow](.github/workflows/azure-deploy.yml)** - CI/CD configuration
+- **[Deployment Improvements](./DEPLOYMENT_IMPROVEMENTS.md)** - What's new and improved
 
 ---
 
@@ -292,17 +267,14 @@ For production workloads, consider Standard (S1) tier at ~$70/month.
 
 ## ✅ Success Checklist
 
-- [ ] Run `./validate-deployment.sh` - all checks pass
-- [ ] Azure resources created (via Bicep or manually)
-- [ ] Environment variables configured
-- [ ] Application deployed successfully
+- [ ] Prerequisites installed and verified
+- [ ] Azure CLI logged in
+- [ ] Deployment script executed successfully
 - [ ] Health check returns 200 OK
-- [ ] Can create/read applications
-- [ ] Can create/read fact sheets
-- [ ] AI analysis works
+- [ ] Can access the application
+- [ ] Can create/read applications and fact sheets
 - [ ] GitHub Actions configured (optional but recommended)
-- [ ] Application Insights enabled (recommended)
 
 ---
 
-**Need help?** Check the troubleshooting section or review the detailed [AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md) guide.
+**Need help?** Check the troubleshooting section above or review the detailed [AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md) guide.
