@@ -6,19 +6,10 @@
       "value": "asbestosguard"
     },
     "environment": {
-      "value": "dev"
+      "value": "prod"
     },
     "foundryEndpoint": {
-      "value": "REPLACE_WITH_YOUR_FOUNDRY_ENDPOINT"
-    },
-    "foundryAgent1Id": {
-      "value": "REPLACE_WITH_AGENT_1_ID"
-    },
-    "foundryAgent2Id": {
-      "value": "REPLACE_WITH_AGENT_2_ID"
-    },
-    "foundryAgent3Id": {
-      "value": "REPLACE_WITH_AGENT_3_ID"
+      "value": "https://placeholder.ai.azure.com"
     },
     "appServicePlanSku": {
       "value": "B1"
