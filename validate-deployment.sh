@@ -160,10 +160,15 @@ if [ $ERRORS -eq 0 ]; then
         echo -e "${YELLOW}$WARNINGS warning(s) found - review above${NC}"
     fi
     echo ""
-    echo "You're ready to deploy! Use one of these methods:"
-    echo "  • ./deploy-simple.sh <resource-group> <app-name> <api-key>"
-    echo "  • ./deploy-to-azure.ps1 -ResourceGroup <rg> -WebAppName <name>"
-    echo "  • GitHub Actions (push to main branch)"
+    echo "You're ready to deploy! Use the unified deployment script:"
+    echo "  • ./deploy.sh <resource-group> <webapp-name>"
+    echo ""
+    echo "Examples:"
+    echo "  • First time: ./deploy.sh my-rg my-webapp"
+    echo "  • Refresh:    ./deploy.sh my-rg my-webapp --skip-infrastructure"
+    echo ""
+    echo "For help: ./deploy.sh --help"
+    echo "Quick reference: QUICK_DEPLOY.md"
     echo ""
     exit 0
 else
