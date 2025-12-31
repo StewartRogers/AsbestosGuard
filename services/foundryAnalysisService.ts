@@ -6,7 +6,11 @@ import { askAgent } from "./foundryAgentClient.js";
  * Uses agent1 (EFSAGENT) to analyze license applications
  */
 
-const AGENT_1_ID = process.env.FOUNDRY_AGENT_1_ID || 'asst_WfzpVc2VFNSOimWtPFeH2M8A';
+const AGENT_1_ID = process.env.FOUNDRY_AGENT_1_ID;
+
+if (!AGENT_1_ID) {
+  throw new Error('FOUNDRY_AGENT_1_ID must be set in .env.local');
+}
 
 /**
  * Sends application to Foundry agent1 for analysis

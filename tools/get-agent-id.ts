@@ -24,7 +24,10 @@ async function getAgentIdByName(agentName: string): Promise<string | null> {
       { encoding: 'utf-8' }
     ).trim();
 
-    const apiVersions = ['2025-05-01', '2025-05-15-preview'];
+    const versions = process.env.AZURE_AI_FOUNDRY_API_VERSIONS;
+    const apiVersions = versions 
+      ? versions.split(',').map(v => v.trim())
+      : ['2025-05-01', '2025-05-15-preview'];
 
     for (const apiVersion of apiVersions) {
       try {
