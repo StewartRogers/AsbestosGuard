@@ -245,10 +245,9 @@ az account show
 
 ## 📚 Additional Resources
 
-- **[Detailed Azure Guide](./AZURE_DEPLOYMENT.md)** - Step-by-step manual setup reference
+- **[Detailed Azure Guide](./docs/archive/AZURE_DEPLOYMENT.md)** - Step-by-step manual setup reference (archived)
 - **[Infrastructure as Code](./infrastructure/main.bicep)** - Bicep template details
 - **[GitHub Actions Workflow](.github/workflows/azure-deploy.yml)** - CI/CD configuration
-- **[Deployment Improvements](./DEPLOYMENT_IMPROVEMENTS.md)** - What's new and improved
 
 ---
 
@@ -277,4 +276,4 @@ For production workloads, consider Standard (S1) tier at ~$70/month.
 
 ---
 
-**Need help?** Check the troubleshooting section above or review the detailed [AZURE_DEPLOYMENT.md](./AZURE_DEPLOYMENT.md) guide.
+**Need help?** Check the troubleshooting section above or review the detailed [Azure deployment guide](./docs/archive/AZURE_DEPLOYMENT.md) if needed.
