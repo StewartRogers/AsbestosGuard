@@ -1,5 +1,24 @@
 # Complete Deployment Script for AsbestosGuard
+# 
+# DEPRECATED: This script is deprecated in favor of the unified deploy.sh script
+# Please use: ./deploy.sh <resource-group> <webapp-name> --skip-infrastructure
+# See QUICK_DEPLOY.md for more information
+#
 # This script builds, packages, and deploys your app to Azure Web App
+
+Write-Host "⚠️  WARNING: This script is deprecated!" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "Please use the new unified deployment script instead:" -ForegroundColor Yellow
+Write-Host "  ./deploy.sh <resource-group> <webapp-name> --skip-infrastructure" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "For help: ./deploy.sh --help"
+Write-Host "Quick reference: QUICK_DEPLOY.md"
+Write-Host ""
+$continue = Read-Host "Continue with this deprecated script anyway? (y/N)"
+if ($continue -notmatch '^[Yy]$') {
+    exit 1
+}
+Write-Host ""
 
 param(
     [Parameter(Mandatory=$true)]

@@ -1,6 +1,26 @@
 # PowerShell deployment helper - deploy-simple.ps1
+#
+# DEPRECATED: This script is deprecated in favor of the unified deploy.sh script
+# Please use: ./deploy.sh <resource-group> <webapp-name> --skip-infrastructure
+# See QUICK_DEPLOY.md for more information
+#
 # Usage: .\deploy-simple.ps1 -ResourceGroup <rg> -WebAppName <name> [-GeminiApiKey <key>]
 # Requires: Azure CLI logged in, Node, npm, tsc (via npx)
+
+Write-Host "⚠️  WARNING: This script is deprecated!" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "Please use the new unified deployment script instead:" -ForegroundColor Yellow
+Write-Host "  ./deploy.sh <resource-group> <webapp-name> --skip-infrastructure" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "For help: ./deploy.sh --help"
+Write-Host "Quick reference: QUICK_DEPLOY.md"
+Write-Host ""
+$continue = Read-Host "Continue with this deprecated script anyway? (y/N)"
+if ($continue -notmatch '^[Yy]$') {
+    exit 1
+}
+Write-Host ""
+
 param(
     [Parameter(Mandatory=$true)][string]$ResourceGroup,
     [Parameter(Mandatory=$true)][string]$WebAppName,

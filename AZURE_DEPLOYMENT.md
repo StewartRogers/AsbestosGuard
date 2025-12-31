@@ -1,6 +1,18 @@
 # Azure Deployment Guide for AsbestosGuard
 
+> **⚡ Quick Start:** For simplified deployment, use the [unified deployment script](./QUICK_DEPLOY.md):
+> ```bash
+> ./deploy.sh <resource-group> <webapp-name>
+> ```
+> This guide provides detailed manual setup instructions for those who need them.
+
 This guide provides step-by-step instructions for deploying the AsbestosGuard application to Azure using Azure App Service (Web App) and Azure Blob Storage.
+
+## Deployment Options
+
+1. **🚀 Recommended: [Unified Script](./QUICK_DEPLOY.md)** - Single command deployment
+2. **📖 This Guide** - Manual step-by-step setup (detailed below)
+3. **🤖 [GitHub Actions](./.github/workflows/azure-deploy.yml)** - Automated CI/CD
 
 ## Prerequisites
 
