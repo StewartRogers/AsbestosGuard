@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ApplicationStatus, LicenseType } from '../../types';
 import { Button, Input, Select, Card } from '../../components/UI';
 import { ApplicationSummary } from '../../components/ApplicationSummary';
-import { analyzeApplicationServer } from '../../services/geminiClient';
+import { analyzeApplicationServer } from '../../services/foundryClient';
 import { ArrowLeft, ChevronRight, ChevronLeft, Check, AlertCircle, HelpCircle, Phone, Mail, UserPlus, Trash2, Calendar, Hash, Info } from 'lucide-react';
 const STEPS = [
     { id: 1, title: 'Contact Info' },

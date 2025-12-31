@@ -461,8 +461,8 @@ app.listen(PORT, () => {
   console.log(`Storage: ${USE_AZURE_STORAGE ? 'Azure Blob Storage' : 'Local File System'}`);
 });
 
-// AI Analysis endpoint - uses Foundry Agents
-app.post('/__api/gemini/analyze', async (req, res) => {
+// AI Analysis endpoint - uses Azure AI Foundry Agents
+const handleFoundryAnalysis = async (req: any, res: any) => {
   try {
     const { application, factSheet } = req.body || {};
     if (!application) {
@@ -471,10 +471,10 @@ app.post('/__api/gemini/analyze', async (req, res) => {
 
     const foundryEndpoint = process.env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT;
     if (!foundryEndpoint) {
-      return res.status(500).json({ error: 'Foundry not configured. Set AZURE_AI_FOUNDRY_PROJECT_ENDPOINT in .env.local' });
+      return res.status(500).json({ error: 'Azure AI Foundry not configured. Set AZURE_AI_FOUNDRY_PROJECT_ENDPOINT in .env.local' });
     }
 
-    console.log('[server] Using Foundry Agents for analysis');
+    console.log('[server] Using Azure AI Foundry Agents for analysis');
     try {
       const mod = await import('./services/foundryAnalysisService.js');
       const analyzeApplication = (mod as any)?.analyzeApplication ?? (mod as any)?.default?.analyzeApplication;
@@ -496,7 +496,13 @@ app.post('/__api/gemini/analyze', async (req, res) => {
     console.error('AI analysis error:', err);
     return res.status(500).json({ error: 'Internal server error in AI analysis.' });
   }
-});
+};
+
+// Primary endpoint - Azure AI Foundry
+app.post('/__api/foundry/analyze', handleFoundryAnalysis);
+
+// Legacy endpoint for backward compatibility (redirects to Foundry)
+app.post('/__api/gemini/analyze', handleFoundryAnalysis);
 
 // Foundry Agents chat endpoint: route to one of three agents
 app.post('/__api/foundry/:agentKey/chat', async (req, res) => {
