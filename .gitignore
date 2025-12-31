@@ -34,6 +34,10 @@ deploy-package
 .env.local
 .env.production
 
-# Build artifacts
-server.js
-types.js
+# Build artifacts - TypeScript compilation outputs
+# Ignore all .js files that have .ts/.tsx counterparts
+*.js
+# Exception: Keep intentional .js files that don't have TS versions
+!test-get.js
+!test-request.js
+!startup.js
