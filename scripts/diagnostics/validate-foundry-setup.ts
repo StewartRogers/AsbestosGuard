@@ -78,9 +78,20 @@ async function validateSetup(): Promise<void> {
 
   const endpoint = process.env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT;
   if (endpoint) {
+    // More secure validation - check full domain not substring
+    let isValidEndpoint = false;
+    try {
+      const url = new URL(endpoint);
+      isValidEndpoint = url.protocol === 'https:' && 
+                       (url.hostname === 'services.ai.azure.com' || 
+                        url.hostname.endsWith('.services.ai.azure.com'));
+    } catch (e) {
+      isValidEndpoint = false;
+    }
+    
     check(
       'AZURE_AI_FOUNDRY_PROJECT_ENDPOINT is valid URL',
-      endpoint.startsWith('https://') && endpoint.includes('services.ai.azure.com'),
+      isValidEndpoint,
       'Invalid endpoint format',
       'Should be: https://your-project.services.ai.azure.com/api/projects/your-project'
     );
