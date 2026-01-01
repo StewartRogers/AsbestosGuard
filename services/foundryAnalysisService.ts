@@ -1,5 +1,5 @@
 import { LicenseApplication, AIAnalysisResult, EmployerFactSheet } from "../types";
-import { askAgent } from "./foundryAgentClient.js";
+import { askAgent, InvokeResponse } from "./foundryAgentClient.js";
 
 /**
  * Foundry-based analysis service using Azure AI Foundry agents
@@ -8,11 +8,17 @@ import { askAgent } from "./foundryAgentClient.js";
 
 // Get agent ID at runtime, not at module load time
 function getAgent1Id(): string {
-  const id = process.env.FOUNDRY_AGENT_1_ID;
-  if (!id) {
-    throw new Error('FOUNDRY_AGENT_1_ID must be set in .env.local');
+  const candidates = [
+    process.env.FOUNDRY_AGENT_1_ID,
+    process.env.FOUNDRY_AGENT_1_NAME,
+    process.env.AZURE_AI_FOUNDRY_AGENT_1_ID
+  ].filter(Boolean) as string[];
+
+  if (!candidates.length) {
+    throw new Error('FOUNDRY_AGENT_1_ID (or _NAME) must be set in .env.local');
   }
-  return id;
+
+  return candidates[0];
 }
 
 /**
@@ -26,19 +32,26 @@ export async function analyzeApplication(
   try {
     // Build a comprehensive prompt for the Foundry agent
     const prompt = buildAnalysisPrompt(application, factSheet);
+    const agentId = getAgent1Id();
 
-    console.log('[foundryAnalysisService] Sending application to Foundry agent1...');
+    console.log(`[foundryAnalysisService] Sending application to Foundry agent (${agentId})...`);
     
     // Call agent1 with the analysis prompt
-    const agentResponse = await askAgent(getAgent1Id(), prompt, {
-      timeoutMs: 60000,
-      pollMs: 1000
-    });
+    const agentResponse: InvokeResponse = await askAgent(agentId, prompt, { timeoutMs: 60000 });
 
     console.log('[foundryAnalysisService] Received response from agent1');
 
     // Parse and structure the agent response
-    const analysisResult = parseAgentResponse(application, agentResponse, factSheet);
+    const analysisResult = parseAgentResponse(application, agentResponse.response, factSheet);
+    const executedAt = new Date().toISOString();
+    (analysisResult as any).executedAt = executedAt;
+    analysisResult.debug = {
+      prompt,
+      rawResponse: agentResponse.response,
+      agentId,
+      durationMs: agentResponse.duration_ms,
+      executedAt
+    } as any;
     
     return analysisResult;
   } catch (error) {

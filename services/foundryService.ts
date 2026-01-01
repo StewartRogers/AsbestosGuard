@@ -15,8 +15,8 @@ export async function chatWithAgent(agentKey: 'agent1' | 'agent2' | 'agent3', pr
   const assistantId = getAgentNameOrId(agentKey);
   // Use the name/ID directly - Azure Foundry API supports both agent names and IDs
   console.log(`[foundryService] Using agent: ${assistantId}`);
-  const reply = await askAgent(assistantId, prompt);
-  return { reply };
+  const resp = await askAgent(assistantId, prompt);
+  return { reply: resp.response };
 }
 
 export default { chatWithAgent };

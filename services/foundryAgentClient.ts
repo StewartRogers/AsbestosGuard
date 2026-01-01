@@ -13,17 +13,27 @@ export interface InvokeResponse {
   duration_ms: number;
 }
 
+export interface AskAgentOptions {
+  timeoutMs?: number;
+  pollMs?: number; // accepted for API parity; bridge currently ignores
+}
+
 /**
- * Invoke a published agent via the bridge
- * @param agentId Name of the agent (must match Python AGENT_RESPONSES_URLS)
- * @param prompt Prompt text
- * @param timeoutMs Timeout in milliseconds (default 60000)
+ * Invoke a published agent via the Python bridge
+ * @param agentId Name/ID of the agent (must match AGENT_RESPONSES_URLS keys)
+ * @param prompt Prompt text to send
+ * @param options Timeout config (number or object)
  */
 export async function askAgent(
   agentId: string,
   prompt: string,
-  timeoutMs: number = 60000
+  options?: number | AskAgentOptions
 ): Promise<InvokeResponse> {
+  const timeoutMs = typeof options === "number" ? options : options?.timeoutMs ?? 60000;
+
+  if (!agentId) throw new Error("Agent ID is required");
+  if (!prompt) throw new Error("Prompt is required");
+
   const res = await fetch(`${BRIDGE_URL}/invoke`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -36,7 +46,7 @@ export async function askAgent(
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Agent invocation failed: ${text}`);
+    throw new Error(`Agent invocation failed (${res.status}): ${text}`);
   }
 
   const data: InvokeResponse = await res.json();

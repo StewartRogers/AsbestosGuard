@@ -38,10 +38,11 @@ async function testAgentTracing() {
   console.log('   Sending: "Hello, are you working?"');
   try {
     const start = Date.now();
-    const response = await askAgent(AGENT_1_ID, 'Hello, are you working?', {
+    const resp = await askAgent(AGENT_1_ID, 'Hello, are you working?', {
       timeoutMs: 30000,
       pollMs: 1000
     });
+    const response = resp.response;
     const duration = Date.now() - start;
     
     // Validate JSON response (EFSAGENT should return JSON)
@@ -91,10 +92,11 @@ Respond with JSON including risk assessment.`;
 
   try {
     const start = Date.now();
-    const response = await askAgent(AGENT_1_ID, testPrompt, {
+    const resp = await askAgent(AGENT_1_ID, testPrompt, {
       timeoutMs: 60000,
       pollMs: 1000
     });
+    const response = resp.response;
     const duration = Date.now() - start;
     
     // Validate JSON response (EFSAGENT should return JSON)
