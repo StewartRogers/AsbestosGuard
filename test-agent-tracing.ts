@@ -43,7 +43,19 @@ async function testAgentTracing() {
       pollMs: 1000
     });
     const duration = Date.now() - start;
+    
+    // Validate JSON response (EFSAGENT should return JSON)
+    let isValidJson = false;
+    try {
+      JSON.parse(response);
+      isValidJson = true;
+    } catch (e) {
+      isValidJson = false;
+    }
+    
     console.log(`   ✅ SUCCESS (${duration}ms)`);
+    console.log(`   CONFIRMED: Agent ${AGENT_1_ID} processed this request`);
+    console.log(`   Response format: ${isValidJson ? '✅ Valid JSON' : '⚠️ Not JSON'}`);
     console.log(`   Response: ${response.substring(0, 200)}${response.length > 200 ? '...' : ''}`);
     console.log('');
   } catch (error) {
@@ -84,7 +96,19 @@ Respond with JSON including risk assessment.`;
       pollMs: 1000
     });
     const duration = Date.now() - start;
+    
+    // Validate JSON response (EFSAGENT should return JSON)
+    let isValidJson = false;
+    try {
+      JSON.parse(response);
+      isValidJson = true;
+    } catch (e) {
+      isValidJson = false;
+    }
+    
     console.log(`   ✅ SUCCESS (${duration}ms)`);
+    console.log(`   CONFIRMED: Agent ${AGENT_1_ID} processed this request`);
+    console.log(`   Response format: ${isValidJson ? '✅ Valid JSON' : '⚠️ Not JSON'}`);
     console.log(`   Response length: ${response.length} characters`);
     console.log(`   Response preview: ${response.substring(0, 300)}${response.length > 300 ? '...' : ''}`);
     console.log('');

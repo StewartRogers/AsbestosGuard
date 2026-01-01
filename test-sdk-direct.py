@@ -11,7 +11,16 @@ import dotenv
 dotenv.load_dotenv('.env.local')
 
 endpoint = os.getenv('AZURE_AI_FOUNDRY_PROJECT_ENDPOINT')
-agent_id = os.getenv('FOUNDRY_AGENT_1_ID', 'EFSAGENT')
+agent_id = os.getenv('FOUNDRY_AGENT_1_ID')
+
+if not endpoint:
+    print(f"❌ ERROR: AZURE_AI_FOUNDRY_PROJECT_ENDPOINT must be set in .env.local")
+    exit(1)
+
+if not agent_id:
+    print(f"❌ ERROR: FOUNDRY_AGENT_1_ID must be set in .env.local")
+    print(f"   Example: FOUNDRY_AGENT_1_ID=EFSAGENT")
+    exit(1)
 
 print(f"Testing direct SDK usage...")
 print(f"Endpoint: {endpoint}")

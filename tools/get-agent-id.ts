@@ -69,7 +69,14 @@ async function getAgentIdByName(agentName: string): Promise<string | null> {
 }
 
 async function main() {
-  const agentName = process.argv[2] || 'EFSAGENT';
+  const agentName = process.argv[2];
+
+  if (!agentName) {
+    console.error('❌ ERROR: Agent name must be provided as argument');
+    console.error('   Usage: npx tsx tools/get-agent-id.ts <agent-name>');
+    console.error('   Example: npx tsx tools/get-agent-id.ts EFSAGENT');
+    process.exit(1);
+  }
 
   console.log('='.repeat(60));
   console.log(`Get Agent ID for: ${agentName}`);

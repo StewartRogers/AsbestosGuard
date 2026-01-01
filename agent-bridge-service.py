@@ -1,171 +1,157 @@
 """
-Azure AI Foundry Native Agent Bridge Service
-Provides REST API bridge between Node.js/TypeScript and Azure AI Foundry native agents
-Uses Azure AI Projects SDK (AIProjectClient) for native agent support
+Azure AI Foundry Agent Bridge Service
+Simplified for published applications
 """
 
 import os
 import time
-import asyncio
-import httpx
-from typing import Optional
-from urllib.parse import urlparse
+import logging
+from typing import Optional, Dict
+
+import requests
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from azure.identity import DefaultAzureCredential
-import logging
 
-# Configure logging
+from azure.identity import DefaultAzureCredential
+
+# ---------------------------------------------------------------------
+# Load environment
+# ---------------------------------------------------------------------
+load_dotenv(".env.local")
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s %(levelname)s %(message)s"
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("foundry-agent-bridge")
 
-# Load environment variables
-load_dotenv('.env.local')
+# Credential for Bearer tokens
+credential = DefaultAzureCredential()
+AI_SCOPE = "https://ai.azure.com/.default"
 
-app = FastAPI(title="Azure AI Foundry Agent Bridge", version="1.0.0")
+# ---------------------------------------------------------------------
+# Agent endpoints (from env.local)
+# ---------------------------------------------------------------------
+AGENT_RESPONSES_URLS: Dict[str, str] = {
+    "EMPFACTSHEET": os.getenv("FOUNDRY_AGENT_1_RESPONSES_URL"),
+    "APPRISKANALYSIS": os.getenv("FOUNDRY_AGENT_2_RESPONSES_URL"),
+    "EMPWEBPROFILEAGENT": os.getenv("FOUNDRY_AGENT_3_RESPONSES_URL"),
+}
 
-# Azure AI configuration
-FOUNDRY_ENDPOINT = os.getenv('AZURE_AI_FOUNDRY_PROJECT_ENDPOINT')
-AGENT_1_ID = os.getenv('FOUNDRY_AGENT_1_ID', 'EFSAGENT')
-AGENT_2_ID = os.getenv('FOUNDRY_AGENT_2_ID', 'APPRISKANALYSIS')
-AGENT_3_ID = os.getenv('FOUNDRY_AGENT_3_ID', 'EMPWEBPROFILEAGENT')
+for name, url in AGENT_RESPONSES_URLS.items():
+    if not url:
+        raise RuntimeError(f"Missing RESPONSES_URL for agent {name}")
 
-if FOUNDRY_ENDPOINT:
-    logger.info(f'✅ Using Foundry endpoint: {FOUNDRY_ENDPOINT}')
-else:
-    logger.warning('⚠️ AZURE_AI_FOUNDRY_PROJECT_ENDPOINT not set!')
+# ---------------------------------------------------------------------
+# Token cache
+# ---------------------------------------------------------------------
+_TOKEN_CACHE = {"token": None, "expires": 0}
 
-logger.info(f'📋 Configured agents: {AGENT_1_ID}, {AGENT_2_ID}, {AGENT_3_ID}')
 
+def _get_bearer_token() -> str:
+    now = time.time()
+    if _TOKEN_CACHE["token"] and now < _TOKEN_CACHE["expires"] - 60:
+        return _TOKEN_CACHE["token"]
+    token = credential.get_token(AI_SCOPE)
+    _TOKEN_CACHE["token"] = token.token
+    _TOKEN_CACHE["expires"] = token.expires_on
+    return token.token
+
+
+# ---------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------
 class InvokeRequest(BaseModel):
     agent_id: str
     prompt: str
     timeout_ms: Optional[int] = 60000
 
+
 class InvokeResponse(BaseModel):
+    agent_id: str
     response: str
     duration_ms: int
-    agent_id: str
+
+
+# ---------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------
+def _invoke_agent(responses_url: str, prompt: str, timeout_ms: int) -> str:
+    headers = {
+        "Authorization": f"Bearer {_get_bearer_token()}",
+        "Content-Type": "application/json"
+    }
+    payload = {"input": prompt}
+
+    resp = requests.post(
+        responses_url,
+        headers=headers,
+        json=payload,
+        timeout=timeout_ms / 1000
+    )
+
+    if resp.status_code >= 400:
+        raise RuntimeError(
+            f"Responses API failed ({resp.status_code}): {resp.text}"
+        )
+
+    # Extract text from OpenAI-compatible responses
+    data = resp.json()
+    for item in data.get("output", []):
+        if item.get("type") == "message":
+            for content in item.get("content", []):
+                if content.get("type") == "output_text":
+                    return content.get("text")
+    raise RuntimeError("No text output returned from agent")
+
+
+# ---------------------------------------------------------------------
+# FastAPI app
+# ---------------------------------------------------------------------
+app = FastAPI(
+    title="Azure AI Foundry Agent Bridge",
+    version="1.0.0"
+)
+
 
 @app.get("/health")
-async def health_check():
-    """Health check endpoint"""
+async def health():
     return {
         "status": "healthy",
-        "endpoint": FOUNDRY_ENDPOINT,
-        "agents_configured": {
-            "agent1": AGENT_1_ID,
-            "agent2": AGENT_2_ID,
-            "agent3": AGENT_3_ID
-        }
+        "agents": list(AGENT_RESPONSES_URLS.keys())
     }
 
-async def invoke_agent_async(agent_id: str, prompt: str, timeout_ms: int):
-    """Invoke Azure AI Foundry native agent via REST API"""
-    try:
-        logger.info(f"📤 Invoking native agent: {agent_id}")
-        
-        credential = DefaultAzureCredential()
-        token = credential.get_token("https://ai.azure.com/.default")
-        
-        headers = {
-            "Authorization": f"Bearer {token.token}",
-            "Content-Type": "application/json"
-        }
-        
-        # Use the Agent Service API endpoint (not Assistants)
-        base_url = FOUNDRY_ENDPOINT.rstrip('/')
-        
-        start_time = time.time()
-        async with httpx.AsyncClient() as client:
-            # Invoke agent directly
-            response = await client.post(
-                f"{base_url}/agents/{agent_id}:invoke",
-                headers=headers,
-                json={"input": prompt},
-                timeout=timeout_ms / 1000
-            )
-            
-            response.raise_for_status()
-            result = response.json()
-        
-        elapsed = time.time() - start_time
-        
-        output = result.get("output", result.get("response", str(result)))
-        logger.info(f"✅ Agent completed in {elapsed:.1f}s")
-        return output
-        
-    except Exception as e:
-        logger.error(f"❌ Error: {str(e)}")
-        import traceback
-        logger.error(f"   Traceback: {traceback.format_exc()}")
-        raise
 
 @app.post("/invoke", response_model=InvokeResponse)
-async def invoke_agent(request: InvokeRequest):
-    """Invoke an Azure AI Foundry native agent"""
+async def invoke(request: InvokeRequest):
+    if request.agent_id not in AGENT_RESPONSES_URLS:
+        raise HTTPException(400, f"Unknown agent_id '{request.agent_id}'")
+
+    responses_url = AGENT_RESPONSES_URLS[request.agent_id]
+
     start = time.time()
-    
     try:
-        if not request.agent_id or not request.prompt:
-            raise HTTPException(status_code=400, detail="agent_id and prompt are required")
-        
-        logger.info(f"📤 Agent invocation: {request.agent_id}")
-        
-        if not FOUNDRY_ENDPOINT:
-            raise HTTPException(status_code=500, detail="FOUNDRY_ENDPOINT not configured")
-        
-        # Invoke agent asynchronously
-        response_text = await invoke_agent_async(
-            request.agent_id, 
-            request.prompt, 
-            request.timeout_ms
+        text = _invoke_agent(
+            responses_url=responses_url,
+            prompt=request.prompt,
+            timeout_ms=request.timeout_ms
         )
-        
-        duration = int((time.time() - start) * 1000)
-        
-        logger.info(f"✅ Agent completed in {duration}ms")
-        
-        return InvokeResponse(
-            response=response_text,
-            duration_ms=duration,
-            agent_id=request.agent_id
-        )
-        
-    except HTTPException:
-        raise
     except Exception as e:
-        duration = int((time.time() - start) * 1000)
-        logger.error(f"❌ Agent invocation failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Agent invocation failed: {str(e)}")
+        logger.error(str(e))
+        raise HTTPException(500, f"Agent invocation failed: {e}")
 
-@app.get("/agents")
-async def list_agents():
-    """List configured agents"""
-    return {
-        "agents": [
-            {"id": AGENT_1_ID},
-            {"id": AGENT_2_ID},
-            {"id": AGENT_3_ID}
-        ]
-    }
+    duration = int((time.time() - start) * 1000)
+    return InvokeResponse(
+        agent_id=request.agent_id,
+        response=text,
+        duration_ms=duration
+    )
 
+
+# ---------------------------------------------------------------------
+# Local run
+# ---------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
-    logger.info("=" * 60)
-    logger.info("🚀 Starting Azure AI Foundry Agent Bridge Service")
-    logger.info("=" * 60)
-    logger.info(f"📍 Endpoint: {FOUNDRY_ENDPOINT or '❌ NOT SET - Set AZURE_AI_FOUNDRY_PROJECT_ENDPOINT'}")
-    logger.info(f"📋 Configured Agents:")
-    logger.info(f"   1. {AGENT_1_ID}")
-    logger.info(f"   2. {AGENT_2_ID}")
-    logger.info(f"   3. {AGENT_3_ID}")
-    logger.info(f"🔌 Server: http://127.0.0.1:8001")
-    logger.info(f"🏥 Health check: http://127.0.0.1:8001/health")
-    logger.info(f"📚 API docs: http://127.0.0.1:8001/docs")
-    logger.info("=" * 60)
-    uvicorn.run(app, host="127.0.0.1", port=8001, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=8001)

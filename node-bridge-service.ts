@@ -16,10 +16,24 @@ const execAsync = promisify(exec);
 const app = express();
 app.use(express.json());
 
-const FOUNDRY_ENDPOINT = process.env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT || '';
-const AGENT_1 = process.env.FOUNDRY_AGENT_1_ID || 'EFSAGENT';
-const AGENT_2 = process.env.FOUNDRY_AGENT_2_ID || 'APPRISKANALYSIS';
-const AGENT_3 = process.env.FOUNDRY_AGENT_3_ID || 'EMPWEBPROFILEAGENT';
+const FOUNDRY_ENDPOINT = process.env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT;
+const AGENT_1 = process.env.FOUNDRY_AGENT_1_ID;
+const AGENT_2 = process.env.FOUNDRY_AGENT_2_ID;
+const AGENT_3 = process.env.FOUNDRY_AGENT_3_ID;
+
+// Validate required configuration
+if (!FOUNDRY_ENDPOINT) {
+  throw new Error('❌ AZURE_AI_FOUNDRY_PROJECT_ENDPOINT must be set in .env.local');
+}
+if (!AGENT_1) {
+  throw new Error('❌ FOUNDRY_AGENT_1_ID must be set in .env.local');
+}
+if (!AGENT_2) {
+  throw new Error('❌ FOUNDRY_AGENT_2_ID must be set in .env.local');
+}
+if (!AGENT_3) {
+  throw new Error('❌ FOUNDRY_AGENT_3_ID must be set in .env.local');
+}
 
 app.get('/health', (req, res) => {
   res.json({
@@ -55,7 +69,8 @@ try:
     credential = DefaultAzureCredential()
     client = AIProjectClient.from_connection_string(endpoint, credential)
     
-    # Get agent
+    # Get agent (agent_id is the nextgen agent name/ID)
+    print(f"[python] Getting agent: {agent_id}", file=sys.stderr)
     agent = client.agents.get_agent(agent_id)
     print(f"[python] Got agent: {agent.id}", file=sys.stderr)
     
@@ -70,9 +85,16 @@ try:
             role="user", 
             content=prompt
         )
+        print(f"[python] Created message in thread", file=sys.stderr)
         
-        # Create run
-        run = client.agents.create_run(thread_id=thread.id, assistant_id=agent_id)
+        # Create run using the agent object directly
+        # For nextgen agents, pass the agent object or use the agent's ID directly
+        print(f"[python] Creating run with agent_id: {agent_id}", file=sys.stderr)
+        run = client.agents.create_run(
+            thread_id=thread.id, 
+            assistant_id=agent.id  # Use the agent's actual ID from the get_agent response
+        )
+        print(f"[python] Created run: {run.id}", file=sys.stderr)
         
         # Poll for completion
         import time as time_module
@@ -84,12 +106,12 @@ try:
             if run.status == "completed":
                 break
             elif run.status in ["failed", "cancelled", "expired"]:
-                raise Exception(f"Run {run.status}")
+                raise Exception(f"Run {run.status}: {run.status}")
             time_module.sleep(0.5)
             elapsed += 0.5
         
         if run.status != "completed":
-            raise Exception(f"Timeout after {timeout_ms}ms")
+            raise Exception(f"Timeout after {timeout_ms}ms, final status: {run.status}")
         
         # Get response
         messages = client.agents.list_messages(thread_id=thread.id)
@@ -116,7 +138,11 @@ try:
         
 except Exception as e:
     import traceback
-    print(json.dumps({"error": str(e), "traceback": traceback.format_exc()}), file=sys.stdout)
+    error_msg = str(e)
+    tb = traceback.format_exc()
+    print(f"[python] Error: {error_msg}", file=sys.stderr)
+    print(f"[python] Traceback: {tb}", file=sys.stderr)
+    print(json.dumps({"error": error_msg, "traceback": tb}), file=sys.stdout)
     sys.exit(1)
 `;
 
