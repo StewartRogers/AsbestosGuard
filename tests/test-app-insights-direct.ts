@@ -58,8 +58,7 @@ try {
     azureMonitorExporterOptions: {
       connectionString: connString,
       storageDirectory: process.cwd() + '/.trace-storage'
-    },
-    traceExportIntervalMillis: 500
+    }
   });
   
   console.log('✅ Azure Monitor initialized');

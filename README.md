@@ -1,78 +1,74 @@
-## Run Locally
+# AsbestosGuard
 
-**Prerequisites:**  Node.js 18+
+AsbestosGuard is a licensing and compliance portal for asbestos-related services, built with React, TypeScript, and Azure AI Foundry.
 
-1. Install dependencies:
+## Quick Start
+
+### Prerequisites
+- Node.js 18+
+- Azure AI Foundry project (optional, for AI analysis features)
+
+### Local Development
+
+1. **Install dependencies:**
    ```bash
    npm install
    ```
 
-2. Configure Azure AI Foundry:
-
-   - Create a `.env.local` file at the project root and add the following configuration:
-
-     ```
-     # Azure AI Foundry Configuration
-     AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=https://your-project.services.ai.azure.com/api/projects/your-project
-     FOUNDRY_AGENT_1_ID=asst_your_agent_1_id
-     FOUNDRY_AGENT_2_ID=asst_your_agent_2_id
-     FOUNDRY_AGENT_3_ID=asst_your_agent_3_id
-     ```
-
-   - Authenticate with Azure CLI:
-     ```bash
-     az login
-     ```
-
-3. Run the app:
-   ```bash
-   npm run start
+2. **Configure environment (optional):**
+   Create `.env.local` with Azure AI Foundry settings:
+   ```
+   AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=https://your-project.services.ai.azure.com/api/projects/your-project
+   FOUNDRY_AGENT_1_ID=asst_your_agent_1_id
+   FOUNDRY_AGENT_2_ID=asst_your_agent_2_id
+   FOUNDRY_AGENT_3_ID=asst_your_agent_3_id
    ```
 
-## Deploy to Azure
+3. **Run the application:**
+   ```bash
+   npm run start:dev
+   ```
 
-AsbestosGuard uses a **single unified deployment script** for simplified Azure deployment.
+### Azure Deployment
 
-### 🚀 Quick Deploy
-
-**First-time deployment (creates infrastructure + deploys app):**
+Deploy to Azure App Service:
 ```bash
 ./deploy.sh <resource-group> <webapp-name>
 ```
 
-**Refresh deployment (updates app only):**
-```bash
-./deploy.sh <resource-group> <webapp-name> --skip-infrastructure
+For detailed deployment instructions, see [docs/DEPLOY.md](docs/DEPLOY.md).
+
+## Project Structure
+
+```
+├── components/          # React components
+├── pages/              # Page-level components
+├── services/           # Business logic and API clients
+├── tests/              # Test scripts
+├── scripts/            # Utility scripts
+│   └── diagnostics/   # Diagnostic tools
+├── tools/              # Development tools
+└── docs/               # Documentation
+    └── archive/       # Historical documentation
 ```
 
-**Example:**
-```bash
-# First time - creates everything
-./deploy.sh asbestosguard-rg asbestosguard-prod-webapp
+## Available Scripts
 
-# Subsequent updates - just refresh the app
-./deploy.sh asbestosguard-rg asbestosguard-prod-webapp --skip-infrastructure
-```
+- `npm run dev` - Start Vite development server
+- `npm run build` - Build for production
+- `npm run start:dev` - Run full stack in development mode
+- `npm run test:foundry` - Test Azure AI Foundry integration
+- `npm run validate:setup` - Validate configuration
 
-### 📝 Configuration
+For all available scripts, see `package.json`.
 
-**Optional:** Create `.env.local` for Azure AI Foundry configuration:
-```bash
-AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=https://your-project.services.ai.azure.com/api/projects/your-project
-FOUNDRY_AGENT_1_ID=asst_your_agent_1_id
-FOUNDRY_AGENT_2_ID=asst_your_agent_2_id
-FOUNDRY_AGENT_3_ID=asst_your_agent_3_id
-```
+## Documentation
 
-The deployment script will automatically use these settings if present.
+- [Deployment Guide](docs/DEPLOY.md)
+- [Azure AI Foundry Setup](docs/FOUNDRY_SETUP.md)
+- [Archived Documentation](docs/archive/) - Implementation notes and historical docs
 
-### 📚 Additional Documentation
+## License
 
-- **[Quick Deployment Guide](./DEPLOY.md)** - Additional deployment options and details
-- **[Detailed Azure Guide](./AZURE_DEPLOYMENT.md)** - Step-by-step manual setup reference
-- **[Azure AI Foundry Integration](./FOUNDRY_INTEGRATION_READY.md)** - AI agent setup and usage
+Copyright © 2024 AsbestosGuard. All rights reserved.
 
-### Alternative Deployment Options
-
-- **GitHub Actions:** Automated CI/CD on push to main (see [.github/workflows/azure-deploy.yml](./.github/workflows/azure-deploy.yml))
-- **Docker:** Containerized deployment (see [Dockerfile](./Dockerfile))

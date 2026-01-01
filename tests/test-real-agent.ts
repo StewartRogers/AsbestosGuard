@@ -7,9 +7,9 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 // Initialize tracing FIRST before importing agent client
-import './services/tracing-setup.js';
+import '../services/tracing-setup.js';
 
-import { askAgent } from './services/foundryAgentClient.js';
+import { askAgent } from '../services/foundryAgentClient.js';
 import { trace } from '@opentelemetry/api';
 
 interface InvokeResponse {

@@ -13,6 +13,10 @@ dist-ssr
 dist-server
 *.local
 
+# Temporary files and test artifacts
+tmp/
+.trace-storage/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
