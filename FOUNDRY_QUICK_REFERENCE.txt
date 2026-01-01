@@ -1,0 +1,285 @@
+ASCII Azure AI Foundry Agents - Quick Visual Guide
+
+================================================================================
+                    ASBESTOSGUARD FOUNDRY AGENTS SETUP
+================================================================================
+
+1. PREREQUISITES
+═══════════════════════════════════════════════════════════════════════════════
+
+   ┌──────────────────────┐
+   │  Azure Account       │  ✓ Must have AI Foundry project
+   │  with AI Foundry     │  ✓ Must have agents created
+   └──────────────────────┘
+
+   ┌──────────────────────┐
+   │  Python 3.8+         │  ✓ Check: python --version
+   └──────────────────────┘
+
+   ┌──────────────────────┐
+   │  Node.js 16+         │  ✓ Check: node --version
+   └──────────────────────┘
+
+   ┌──────────────────────┐
+   │  Azure CLI           │  ✓ Check: az --version
+   │                      │  ✓ Login: az login
+   └──────────────────────┘
+
+
+2. QUICK SETUP (5 MINUTES)
+═══════════════════════════════════════════════════════════════════════════════
+
+   Step 1: Discover Agents
+   ───────────────────────
+   $ npm run discover:agents
+   
+   Output shows:
+   ┌─────────────────────────────┐
+   │ Available Agents:           │
+   │ ✓ EFSAGENT (my-agent-id)   │
+   │ ✓ APPRISK... (agent-id-2)  │
+   │ ✓ EMPWEB... (agent-id-3)   │
+   └─────────────────────────────┘
+   
+   → Copy one of these agent IDs
+
+
+   Step 2: Create .env.local
+   ────────────────────────
+   Create file: .env.local
+   
+   Content:
+   ┌─────────────────────────────────────────────────────────┐
+   │ AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=                     │
+   │ https://your-project.services.ai.azure.com/...        │
+   │                                                          │
+   │ FOUNDRY_AGENT_1_ID=EFSAGENT                            │
+   └─────────────────────────────────────────────────────────┘
+
+
+   Step 3: Validate Setup
+   ──────────────────────
+   $ npm run validate:setup
+   
+   Should see:
+   ┌──────────────────────────────────┐
+   │ ✅ AZURE_AI_FOUNDRY_PROJECT_... │
+   │ ✅ FOUNDRY_AGENT_1_ID set       │
+   │ ✅ Files exist                   │
+   │ ✅ Python installed              │
+   │ ✅ Endpoint reachable            │
+   │                                   │
+   │ ✅ Setup is ready!               │
+   └──────────────────────────────────┘
+
+
+   Step 4: Install Python Packages
+   ───────────────────────────────
+   $ pip install fastapi uvicorn azure-identity \
+     azure-ai-projects python-dotenv
+
+
+   Step 5: Start Services
+   ──────────────────────
+   Terminal 1:                Terminal 2:
+   $ npm run agent-bridge     $ npm run start:dev
+   
+   ┌────────────────────┐    ┌──────────────────────┐
+   │ Bridge Service     │    │ Express Server       │
+   │ Port: 8001         │    │ Port: 5000           │
+   │ ✅ Healthy         │    │ ✅ Running           │
+   └────────────────────┘    └──────────────────────┘
+
+
+3. VERIFY IT WORKS
+═══════════════════════════════════════════════════════════════════════════════
+
+   Test 1: Bridge Health
+   ────────────────────
+   $ curl http://127.0.0.1:8001/health
+   
+   ✅ Should return:
+   {
+     "status": "healthy",
+     "endpoint": "https://...",
+     "agents_configured": {...}
+   }
+
+
+   Test 2: Chat with Agent
+   ──────────────────────
+   $ npm run test:foundry
+   
+   ✅ Should see agent response
+
+
+   Test 3: Analyze Application
+   ───────────────────────────
+   $ npm run test:foundry-analysis
+   
+   ✅ Should see analysis result
+
+
+4. ARCHITECTURE
+═══════════════════════════════════════════════════════════════════════════════
+
+   ┌─────────────────────────────────────────────────────────┐
+   │                    User Browser                         │
+   │                   React App (Port 3000)                 │
+   └────────────────┬────────────────────────────────────────┘
+                    │
+                    │ HTTP Request
+                    ▼
+   ┌─────────────────────────────────────────────────────────┐
+   │            Express Server (Port 5000)                   │
+   │  POST /__api/foundry/analyze                            │
+   │  POST /__api/foundry/:agentKey/chat                     │
+   │                                                          │
+   │  services/foundryAgentClient.ts                         │
+   │  services/foundryAnalysisService.ts                     │
+   └────────────────┬────────────────────────────────────────┘
+                    │
+                    │ HTTP (localhost:8001)
+                    ▼
+   ┌─────────────────────────────────────────────────────────┐
+   │       Python Bridge Service (Port 8001)                 │
+   │  agent-bridge-service.py                                │
+   │                                                          │
+   │  POST /invoke                                           │
+   │  GET  /health                                           │
+   │  GET  /agents                                           │
+   └────────────────┬────────────────────────────────────────┘
+                    │
+                    │ HTTPS (Azure API)
+                    ▼
+   ┌─────────────────────────────────────────────────────────┐
+   │         Azure AI Foundry                                │
+   │  https://your-project.services.ai.azure.com/...         │
+   │                                                          │
+   │  • Native Agents                                        │
+   │  • Threads                                              │
+   │  • Runs                                                 │
+   │  • Messages                                             │
+   └─────────────────────────────────────────────────────────┘
+
+
+5. ERROR HANDLING
+═══════════════════════════════════════════════════════════════════════════════
+
+   Problem                     Solution
+   ─────────────────────────────────────────────────────────────
+   
+   ❌ Bridge service not        → npm run agent-bridge
+      running
+   
+   ❌ Agent not found           → npm run discover:agents
+                                 Update .env.local
+   
+   ❌ Missing config            → npm run validate:setup
+                                 Check .env.local
+   
+   ❌ Auth failed               → az login
+                                 Check Azure credentials
+   
+   ❌ Python error              → pip install azure-ai-projects
+                                 Check Python version
+
+
+6. ENVIRONMENT VARIABLES
+═══════════════════════════════════════════════════════════════════════════════
+
+   Required (.env.local)
+   ─────────────────────────────────────────
+   
+   AZURE_AI_FOUNDRY_PROJECT_ENDPOINT
+   Format: https://your-project.services.ai.azure.com/api/projects/your-project
+   Where:  Project Settings → Project API endpoint
+   
+   FOUNDRY_AGENT_1_ID
+   Format: EFSAGENT or agent-id-123-abc
+   Where:  From "npm run discover:agents"
+
+
+   Optional
+   ─────────────────────────────────────────
+   
+   FOUNDRY_AGENT_2_ID   (second agent)
+   FOUNDRY_AGENT_3_ID   (third agent)
+   AGENT_BRIDGE_SERVICE_URL (default: http://127.0.0.1:8001)
+
+
+7. COMMANDS CHEAT SHEET
+═══════════════════════════════════════════════════════════════════════════════
+
+   Configuration
+   ──────────────
+   npm run validate:setup          Check all configuration
+   npm run discover:agents         List available agents
+   bash quick-start.sh             Auto setup (Linux/Mac)
+   quick-start.bat                 Auto setup (Windows)
+
+   Running
+   ───────
+   npm run agent-bridge            Start bridge service
+   npm run start:dev               Start app server
+   npm run start:with-bridge       Start both services
+
+   Testing
+   ───────
+   npm run test:foundry            Test basic agent call
+   npm run test:foundry-analysis   Test analysis endpoint
+
+
+8. TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════════
+
+   Q: How do I know if bridge service is running?
+   A: Check: curl http://127.0.0.1:8001/health
+   
+   Q: How do I find my agent ID?
+   A: Run: npm run discover:agents
+   
+   Q: How do I get the project endpoint?
+   A: Go to Azure AI Foundry → Your Project → Settings
+   
+   Q: Bridge service crashes on start?
+   A: Check: pip install azure-ai-projects
+   
+   Q: Agent responds with error?
+   A: Check: npm run validate:setup
+   
+   Q: Endpoint shows "not reachable"?
+   A: Check: az login (authenticate with Azure)
+
+
+9. SUCCESS INDICATORS
+═══════════════════════════════════════════════════════════════════════════════
+
+   ✅ validate:setup shows all green
+   ✅ Bridge service starts without errors
+   ✅ App server starts without errors
+   ✅ Health check returns 200 status
+   ✅ Chat endpoint returns agent response
+   ✅ Analysis endpoint returns JSON result
+   ✅ No errors in console logs
+
+
+10. NEXT STEPS
+═══════════════════════════════════════════════════════════════════════════════
+
+    1. ✓ Complete setup above
+    2. ✓ Run npm run validate:setup
+    3. ✓ Start both services
+    4. ✓ Test with npm run test:foundry
+    5. → Customize prompts in foundryAnalysisService.ts
+    6. → Integrate with React UI components
+    7. → Deploy to Azure App Service
+
+
+================================================================================
+                         For more help, see:
+         
+         FOUNDRY_SETUP.md          - Complete setup guide
+         CODE_CHANGES_SUMMARY.md   - What was changed
+         FOUNDRY_CHECKLIST.md      - Verification checklist
+================================================================================

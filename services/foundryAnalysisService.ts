@@ -6,10 +6,13 @@ import { askAgent } from "./foundryAgentClient.js";
  * Uses agent1 (EFSAGENT) to analyze license applications
  */
 
-const AGENT_1_ID = process.env.FOUNDRY_AGENT_1_ID;
-
-if (!AGENT_1_ID) {
-  throw new Error('FOUNDRY_AGENT_1_ID must be set in .env.local');
+// Get agent ID at runtime, not at module load time
+function getAgent1Id(): string {
+  const id = process.env.FOUNDRY_AGENT_1_ID;
+  if (!id) {
+    throw new Error('FOUNDRY_AGENT_1_ID must be set in .env.local');
+  }
+  return id;
 }
 
 /**
@@ -27,7 +30,7 @@ export async function analyzeApplication(
     console.log('[foundryAnalysisService] Sending application to Foundry agent1...');
     
     // Call agent1 with the analysis prompt
-    const agentResponse = await askAgent(AGENT_1_ID, prompt, {
+    const agentResponse = await askAgent(getAgent1Id(), prompt, {
       timeoutMs: 60000,
       pollMs: 1000
     });

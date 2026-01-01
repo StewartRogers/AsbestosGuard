@@ -471,29 +471,65 @@ const handleFoundryAnalysis = async (req: any, res: any) => {
 
     const foundryEndpoint = process.env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT;
     if (!foundryEndpoint) {
-      return res.status(500).json({ error: 'Azure AI Foundry not configured. Set AZURE_AI_FOUNDRY_PROJECT_ENDPOINT in .env.local' });
+      return res.status(500).json({ 
+        error: 'Azure AI Foundry not configured',
+        hint: 'Set AZURE_AI_FOUNDRY_PROJECT_ENDPOINT in .env.local',
+        details: {
+          missingVar: 'AZURE_AI_FOUNDRY_PROJECT_ENDPOINT',
+          example: 'https://your-project.services.ai.azure.com/api/projects/your-project'
+        }
+      });
     }
 
-    console.log('[server] Using Azure AI Foundry Agents for analysis');
+    console.log('[server] ✅ Azure AI Foundry configured');
+    console.log('[server] 📤 Starting analysis with Foundry Agents');
+    
     try {
       const mod = await import('./services/foundryAnalysisService.js');
       const analyzeApplication = (mod as any)?.analyzeApplication ?? (mod as any)?.default?.analyzeApplication;
       
       if (!analyzeApplication) {
+        console.error('[server] ❌ Foundry analysis service not found');
         return res.status(500).json({ error: 'Foundry analysis service not found' });
       }
       
+      console.log('[server] 🔍 Invoking analysis...');
       const result = await analyzeApplication(application, factSheet);
+      
+      console.log('[server] ✅ Analysis completed successfully');
       return res.json(result);
     } catch (innerErr) {
-      console.error('Foundry analysis failed:', innerErr);
+      const errMsg = innerErr instanceof Error ? innerErr.message : String(innerErr);
+      console.error('[server] ❌ Foundry analysis failed:', errMsg);
+      
+      // Check if it's a bridge service issue
+      if (errMsg.includes('bridge service') || errMsg.includes('ECONNREFUSED')) {
+        console.error('[server]');
+        console.error('[server] 🔧 BRIDGE SERVICE NOT RUNNING');
+        console.error('[server]    Start it with: npm run agent-bridge');
+        return res.status(500).json({ 
+          error: 'Foundry bridge service not available',
+          hint: 'Start the bridge service with: npm run agent-bridge',
+          details: errMsg
+        });
+      }
+      
+      // Check if it's an agent not found issue
+      if (errMsg.includes('Agent not found') || errMsg.includes('not found')) {
+        return res.status(500).json({ 
+          error: 'Agent not found',
+          hint: 'Run "npm run discover:agents" to see available agents and update .env.local',
+          details: errMsg
+        });
+      }
+      
       return res.status(500).json({ 
-        error: 'Foundry analysis failed', 
-        details: innerErr instanceof Error ? innerErr.message : String(innerErr) 
+        error: 'Foundry analysis failed',
+        details: errMsg 
       });
     }
   } catch (err) {
-    console.error('AI analysis error:', err);
+    console.error('[server] ❌ AI analysis error:', err);
     return res.status(500).json({ error: 'Internal server error in AI analysis.' });
   }
 };
@@ -509,11 +545,44 @@ app.post('/__api/foundry/:agentKey/chat', async (req, res) => {
   try {
     const { agentKey } = req.params as { agentKey: 'agent1' | 'agent2' | 'agent3' };
     const { prompt } = req.body || {};
-    if (!prompt) return res.status(400).json({ error: 'Missing prompt' });
-    const result = await foundryService.chatWithAgent(agentKey, prompt);
-    return res.json(result);
+    
+    if (!prompt) {
+      return res.status(400).json({ error: 'Missing prompt in request body' });
+    }
+    
+    console.log(`[server] 💬 Chat request for ${agentKey}`);
+    
+    try {
+      const result = await foundryService.chatWithAgent(agentKey, prompt);
+      console.log(`[server] ✅ Chat completed for ${agentKey}`);
+      return res.json(result);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      
+      console.error(`[server] ❌ Chat failed for ${agentKey}:`, errMsg);
+      
+      // Check if it's a bridge service issue
+      if (errMsg.includes('bridge service') || errMsg.includes('ECONNREFUSED')) {
+        return res.status(500).json({ 
+          error: 'Bridge service not available',
+          hint: 'Start with: npm run agent-bridge',
+          details: errMsg
+        });
+      }
+      
+      // Check if it's a configuration issue
+      if (errMsg.includes('missing') || errMsg.includes('not set')) {
+        return res.status(500).json({ 
+          error: 'Agent not configured',
+          hint: 'Check FOUNDRY_AGENT_1_ID, FOUNDRY_AGENT_2_ID, FOUNDRY_AGENT_3_ID in .env.local',
+          details: errMsg
+        });
+      }
+      
+      return res.status(500).json({ error: errMsg });
+    }
   } catch (err) {
-    console.error('Foundry chat error:', err);
-    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    console.error('[server] ❌ Chat error:', err);
+    return res.status(500).json({ error: 'Internal server error in chat' });
   }
 });

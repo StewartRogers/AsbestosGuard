@@ -84,156 +84,168 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Cache for agent name -> agent ID lookups (no longer used with bridge service)
 const agentCache: Record<string, string> = {};
 
-function getApiVersions(): string[] {
-  const versions = process.env.AZURE_AI_FOUNDRY_API_VERSIONS;
-  if (!versions) {
-    console.warn('[foundryAgentClient] AZURE_AI_FOUNDRY_API_VERSIONS not set in .env.local, using defaults');
-    return ['2025-05-15-preview', '2025-05-01', '2025-05-01-preview', '2024-12-01-preview', '2024-11-01-preview'];
+/**
+ * Resolves agent identifier to agent ID
+ * For native agents via bridge service, just returns the ID as-is
+ * (no REST API lookup needed - the SDK handles it)
+ */
+export async function resolveAgentId(agentIdOrName: string): Promise<string> {
+  // For bridge service usage, we can pass agent IDs directly
+  // The Microsoft Agent Framework SDK will handle resolution
+  console.log(`[foundryAgentClient] Using agent: ${agentIdOrName}`);
+  return agentIdOrName;
+}
+
+/**
+ * Validates that the bridge service is available and responding
+ */
+async function validateBridgeService(bridgeUrl: string): Promise<void> {
+  try {
+    const response = await fetch(`${bridgeUrl}/health`, {
+      method: 'GET',
+      timeout: 5000
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Bridge service health check failed: ${response.status} ${response.statusText}`);
+    }
+    
+    const health = await response.json() as any;
+    console.log(`[foundryAgentClient] ✅ Bridge service is healthy`);
+    console.log(`[foundryAgentClient]   Endpoint: ${health.endpoint || 'unknown'}`);
+    console.log(`[foundryAgentClient]   Agents configured: agent1=${health.agents_configured?.agent1}, agent2=${health.agents_configured?.agent2}, agent3=${health.agents_configured?.agent3}`);
+  } catch (err) {
+    const error = err as Error;
+    console.error(`[foundryAgentClient] ⚠️ Bridge service validation failed: ${error.message}`);
+    throw new Error(`Azure AI Foundry bridge service unavailable at ${bridgeUrl}: ${error.message}`);
   }
-  return versions.split(',').map(v => v.trim());
 }
 
-const API_VERSIONS = getApiVersions();
-
-export async function createThread(): Promise<{ id: string }> {
-  const result = await tracer.startActiveSpan('agent.create_thread', async (span): Promise<{ id: string }> => {
-    try {
-      for (const apiVersion of API_VERSIONS) {
-        try {
-          const result = await api<{ id: string }>(`/threads?api-version=${apiVersion}`, { method: 'POST', body: JSON.stringify({}) });
-          span.setAttributes({
-            'ai.agent.thread_id': result.id,
-            'ai.agent.api_version': apiVersion
-          });
-          span.setStatus({ code: SpanStatusCode.OK });
-          return result;
-        } catch (err) {
-          console.log(`createThread failed with ${apiVersion}: ${(err as Error).message}`);
-        }
-      }
-      throw new Error('Failed to create thread with any supported API version');
-    } catch (error) {
-      span.recordException(error as Error);
-      span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).message });
-      throw error;
-    } finally {
-      span.end();
-    }
-  });
-  return result;
-}
-
-export async function addMessage(threadId: string, message: MessageContent): Promise<void> {
-  return tracer.startActiveSpan('agent.add_message', async (span) => {
-    try {
-      span.setAttributes({
-        'ai.agent.thread_id': threadId,
-        'ai.agent.message_role': message.role
-      });
-      
-      // Optionally record content if enabled
-      if (process.env.AZURE_TRACING_GEN_AI_CONTENT_RECORDING_ENABLED?.toLowerCase() === 'true') {
-        span.setAttribute('ai.agent.message_content', message.content.substring(0, 1000));
-      }
-      
-      for (const apiVersion of API_VERSIONS) {
-        try {
-          await api(`/threads/${threadId}/messages?api-version=${apiVersion}`, {
-            method: 'POST',
-            body: JSON.stringify({ role: message.role, content: message.content })
-          });
-          span.setStatus({ code: SpanStatusCode.OK });
-          return;
-        } catch (err) {
-          console.log(`addMessage failed with ${apiVersion}: ${(err as Error).message}`);
-        }
-      }
-      throw new Error('Failed to add message with any supported API version');
-    } catch (error) {
-      span.recordException(error as Error);
-      span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).message });
-      throw error;
-    } finally {
-      span.end();
-    }
-  });
-}
-
-export async function runThread(threadId: string, assistantId: string): Promise<{ id: string; status: string }> {
-  const result = await tracer.startActiveSpan('agent.run_thread', async (span): Promise<{ id: string; status: string }> => {
-    try {
-      span.setAttributes({
-        'ai.agent.thread_id': threadId,
-        'ai.agent.assistant_id': assistantId
-      });
-      
-      for (const apiVersion of API_VERSIONS) {
-        try {
-          const result = await api<{ id: string; status: string }>(`/threads/${threadId}/runs?api-version=${apiVersion}`, {
-            method: 'POST',
-            body: JSON.stringify({ assistant_id: assistantId })
-          });
-          span.setAttributes({
-            'ai.agent.run_id': result.id,
-            'ai.agent.run_status': result.status
-          });
-          span.setStatus({ code: SpanStatusCode.OK });
-          return result;
-        } catch (err) {
-          console.log(`runThread failed with ${apiVersion}: ${(err as Error).message}`);
-        }
-      }
-      throw new Error('Failed to run thread with any supported API version');
-    } catch (error) {
-      span.recordException(error as Error);
-      span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).message });
-      throw error;
-    } finally {
-      span.end();
-    }
-  });
-  return result;
-}
-
-export async function getRun(threadId: string, runId: string): Promise<{ id: string; status: string }> {
-  for (const apiVersion of API_VERSIONS) {
-    try {
-      return await api(`/threads/${threadId}/runs/${runId}?api-version=${apiVersion}`, { method: 'GET' });
-    } catch (err) {
-      console.log(`getRun failed with ${apiVersion}: ${(err as Error).message}`);
-    }
+/**
+ * Invokes an Azure AI Foundry native agent via the Python bridge service
+ * The bridge service uses Microsoft Agent Framework SDK to invoke native agents
+ */
+export async function invokeNativeAgent(agentId: string, prompt: string, timeoutMs: number = 60000): Promise<string> {
+  const bridgeUrl = process.env.AGENT_BRIDGE_SERVICE_URL || 'http://127.0.0.1:8001';
+  
+  if (!agentId || !agentId.trim()) {
+    throw new Error('Agent ID cannot be empty. Check FOUNDRY_AGENT_1_ID, FOUNDRY_AGENT_2_ID, or FOUNDRY_AGENT_3_ID in .env.local');
   }
-  throw new Error('Failed to get run with any supported API version');
-}
-
-export async function getMessages(threadId: string): Promise<Array<{ role: string; content: Array<{ type: string; text?: { value: string } }> }>> {
-  for (const apiVersion of API_VERSIONS) {
-    try {
-      const response = await api(`/threads/${threadId}/messages?api-version=${apiVersion}`, { method: 'GET' });
-      if (response && typeof response === 'object' && 'data' in response && Array.isArray((response as any).data)) {
-        return (response as any).data;
-      }
-      return response as any;
-    } catch (err) {
-      console.log(`getMessages failed with ${apiVersion}: ${(err as Error).message}`);
-    }
+  
+  if (!prompt || !prompt.trim()) {
+    throw new Error('Prompt cannot be empty');
   }
-  throw new Error('Failed to get messages with any supported API version');
+  
+  console.log(`[foundryAgentClient] Invoking native agent via bridge: ${agentId}`);
+  console.log(`[foundryAgentClient] Bridge URL: ${bridgeUrl}`);
+  console.log(`[foundryAgentClient] Timeout: ${timeoutMs}ms`);
+  console.log(`[foundryAgentClient] Prompt length: ${prompt.length} characters`);
+  
+  try {
+    // Validate bridge service availability on first invocation
+    await validateBridgeService(bridgeUrl);
+    
+    const response = await fetch(`${bridgeUrl}/invoke`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        agent_id: agentId,
+        prompt: prompt,
+        timeout_ms: timeoutMs
+      })
+    });
+
+    if (!response.ok) {
+      const contentType = response.headers.get('content-type');
+      let errorText = '';
+      
+      try {
+        if (contentType?.includes('application/json')) {
+          const errorData = await response.json() as any;
+          errorText = errorData.detail || JSON.stringify(errorData);
+        } else {
+          errorText = await response.text();
+        }
+      } catch {
+        errorText = `HTTP ${response.status} ${response.statusText}`;
+      }
+      
+      throw new Error(`Bridge service failed: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json() as { response: string; duration_ms: number; agent_id: string };
+    
+    if (!data.response) {
+      throw new Error('Bridge service returned empty response');
+    }
+    
+    console.log(`[foundryAgentClient] ✅ Native agent responded in ${data.duration_ms}ms`);
+    console.log(`[foundryAgentClient]   Response length: ${data.response.length} characters`);
+    
+    return data.response;
+  } catch (err) {
+    const error = err as Error;
+    
+    // Debug: Log full error details
+    console.error(`[foundryAgentClient] Bridge error details:`, {
+      errorMessage: error.message,
+      agentId: agentId,
+      bridgeUrl: bridgeUrl
+    });
+    
+    // Check if it's a network error (bridge service not running)
+    if (error.message.includes('fetch') || error.message.includes('ECONNREFUSED') || error.message.includes('unavailable')) {
+      console.error(`[foundryAgentClient] ❌ BRIDGE SERVICE NOT RUNNING`);
+      console.error(`[foundryAgentClient] Make sure the agent bridge service is running:`);
+      console.error(`[foundryAgentClient]   npm run agent-bridge`);
+      throw new Error(`Azure AI Foundry bridge service not running at ${bridgeUrl}. Start it with: npm run agent-bridge`);
+    }
+    
+    // Check if agent ID is invalid or configuration error
+    if (error.message.includes('not found') || error.message.includes('invalid') || error.message.includes('asst_')) {
+      console.error(`[foundryAgentClient] ❌ AGENT CONFIGURATION ERROR: ${agentId}`);
+      console.error(`[foundryAgentClient] Check if the agent exists in your Azure AI Foundry project.`);
+      throw new Error(`Agent invocation failed for ${agentId}. Full error: ${error.message}`);
+    }
+    
+    throw new Error(`Failed to invoke native agent via bridge: ${error.message}`);
+  }
 }
 
-export async function askAgent(assistantId: string, prompt: string, opts?: { pollMs?: number; timeoutMs?: number }): Promise<string> {
+export async function askAgent(assistantIdOrName: string, prompt: string, opts?: { pollMs?: number; timeoutMs?: number }): Promise<string> {
   return tracer.startActiveSpan('agent.ask', async (span) => {
     const pollMs = opts?.pollMs ?? 1000;
     const timeoutMs = opts?.timeoutMs ?? 60000;
     const start = Date.now();
 
     try {
+      // Validate inputs
+      if (!assistantIdOrName || !assistantIdOrName.trim()) {
+        throw new Error('Agent ID/name cannot be empty');
+      }
+      
+      if (!prompt || !prompt.trim()) {
+        throw new Error('Prompt cannot be empty');
+      }
+      
+      console.log(`[foundryAgentClient] ✨ Starting agent invocation`);
+      console.log(`[foundryAgentClient]   Input: ${assistantIdOrName}`);
+      console.log(`[foundryAgentClient]   Timeout: ${timeoutMs}ms`);
+      
+      // Resolve agent name to ID if needed (cached after first lookup)
+      const agentId = await resolveAgentId(assistantIdOrName);
+      
       span.setAttributes({
-        'ai.agent.assistant_id': assistantId,
+        'ai.agent.agent_id': agentId,
+        'ai.agent.agent_input': assistantIdOrName,
         'ai.agent.timeout_ms': timeoutMs,
-        'ai.agent.poll_interval_ms': pollMs
+        'ai.agent.poll_interval_ms': pollMs,
+        'ai.agent.prompt_length': prompt.length
       });
       
       // Optionally record prompt if enabled
@@ -241,52 +253,54 @@ export async function askAgent(assistantId: string, prompt: string, opts?: { pol
         span.setAttribute('ai.agent.prompt', prompt.substring(0, 1000));
       }
 
-      const thread = await createThread();
-      span.setAttribute('ai.agent.thread_id', thread.id);
+      console.log(`[foundryAgentClient] 📤 Sending request to Azure AI Foundry...`);
       
-      await addMessage(thread.id, { role: 'user', content: prompt });
-      const run = await runThread(thread.id, assistantId);
-      span.setAttribute('ai.agent.run_id', run.id);
-
-      let status = run.status;
-      let pollCount = 0;
-      while (status && status !== 'completed') {
-        if (Date.now() - start > timeoutMs) {
-          span.setStatus({ code: SpanStatusCode.ERROR, message: 'Agent run timed out' });
-          throw new Error('Agent run timed out');
-        }
-        await new Promise(r => setTimeout(r, pollMs));
-        pollCount++;
-        const curr = await getRun(thread.id, run.id);
-        status = curr.status;
-        if (status === 'failed' || status === 'cancelled') {
-          span.setStatus({ code: SpanStatusCode.ERROR, message: `Agent run ${status}` });
-          throw new Error(`Agent run ${status}`);
-        }
-      }
-
-      const messages = await getMessages(thread.id);
-      const lastAssistant = messages.reverse().find(m => m.role === 'assistant');
-      const text = lastAssistant?.content?.find(c => c.type === 'text')?.text?.value ?? '';
+      // Invoke Azure AI Foundry native agent via bridge service
+      // Native agents require the bridge service - REST API only supports OpenAI Assistants format
+      const result = await invokeNativeAgent(agentId, prompt, timeoutMs);
       
       const duration = Date.now() - start;
+      
+      console.log(`[foundryAgentClient] ✅ Agent completed successfully`);
+      console.log(`[foundryAgentClient]   Duration: ${duration}ms`);
+      console.log(`[foundryAgentClient]   Response length: ${result.length} characters`);
+      
       span.setAttributes({
         'ai.agent.duration_ms': duration,
-        'ai.agent.poll_count': pollCount,
-        'ai.agent.response_length': text.length,
-        'ai.agent.status': 'completed'
+        'ai.agent.response_length': result.length,
+        'ai.agent.method': 'native_agent_bridge'
       });
       
-      // Optionally record response if enabled
       if (process.env.AZURE_TRACING_GEN_AI_CONTENT_RECORDING_ENABLED?.toLowerCase() === 'true') {
-        span.setAttribute('ai.agent.response', text.substring(0, 1000));
+        span.setAttribute('ai.agent.response', result.substring(0, 1000));
       }
       
       span.setStatus({ code: SpanStatusCode.OK });
-      return text;
+      return result;
     } catch (error) {
-      span.recordException(error as Error);
-      span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error).message });
+      const duration = Date.now() - start;
+      const err = error as Error;
+      
+      console.error(`[foundryAgentClient] ❌ Agent invocation failed after ${duration}ms`);
+      console.error(`[foundryAgentClient]   Error: ${err.message}`);
+      
+      // Provide helpful debugging information based on error type
+      if (err.message.includes('bridge service')) {
+        console.error(`[foundryAgentClient]`);
+        console.error(`[foundryAgentClient] 🔧 TROUBLESHOOTING GUIDE:`);
+        console.error(`[foundryAgentClient]   1. Verify bridge service is running: npm run agent-bridge`);
+        console.error(`[foundryAgentClient]   2. Check AGENT_BRIDGE_SERVICE_URL is set (default: http://127.0.0.1:8001)`);
+        console.error(`[foundryAgentClient]   3. Ensure AZURE_AI_FOUNDRY_PROJECT_ENDPOINT is set in .env.local`);
+        console.error(`[foundryAgentClient]   4. Verify FOUNDRY_AGENT_1_ID matches an agent in your Azure AI Foundry project`);
+      } else if (err.message.includes('Agent not found')) {
+        console.error(`[foundryAgentClient]`);
+        console.error(`[foundryAgentClient] 🔧 TROUBLESHOOTING GUIDE:`);
+        console.error(`[foundryAgentClient]   1. Run: npm run discover:agents`);
+        console.error(`[foundryAgentClient]   2. Update .env.local with valid agent ID from the output`);
+      }
+      
+      span.recordException(err);
+      span.setStatus({ code: SpanStatusCode.ERROR, message: err.message });
       throw error;
     } finally {
       span.end();
