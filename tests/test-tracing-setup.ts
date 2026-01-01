@@ -43,7 +43,7 @@ console.log('');
 
 try {
   // This import will trigger tracing setup
-  const { askAgent } = await import('./services/foundryAgentClient.js');
+  const { askAgent } = await import('../services/foundryAgentClient.js');
   
   console.log('✅ foundryAgentClient imported successfully');
   console.log('');

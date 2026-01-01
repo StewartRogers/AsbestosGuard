@@ -3,7 +3,7 @@
  * This will help diagnose why traces aren't showing up in Azure Foundry
  */
 
-import { askAgent } from './services/foundryAgentClient.js';
+import { askAgent } from '../services/foundryAgentClient.js';
 import * as dotenv from 'dotenv';
 
 dotenv.config({ path: '.env.local' });
