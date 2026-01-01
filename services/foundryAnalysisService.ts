@@ -1,25 +1,11 @@
 import { LicenseApplication, AIAnalysisResult, EmployerFactSheet } from "../types";
 import { askAgent, InvokeResponse } from "./foundryAgentClient.js";
+import { getAgentId } from "./config.js";
 
 /**
  * Foundry-based analysis service using Azure AI Foundry agents
  * Uses agent1 (EFSAGENT) to analyze license applications
  */
-
-// Get agent ID at runtime, not at module load time
-function getAgent1Id(): string {
-  const candidates = [
-    process.env.FOUNDRY_AGENT_1_ID,
-    process.env.FOUNDRY_AGENT_1_NAME,
-    process.env.AZURE_AI_FOUNDRY_AGENT_1_ID
-  ].filter(Boolean) as string[];
-
-  if (!candidates.length) {
-    throw new Error('FOUNDRY_AGENT_1_ID (or _NAME) must be set in .env.local');
-  }
-
-  return candidates[0];
-}
 
 /**
  * Sends application to Foundry agent1 for analysis
@@ -32,7 +18,7 @@ export async function analyzeApplication(
   try {
     // Build a comprehensive prompt for the Foundry agent
     const prompt = buildAnalysisPrompt(application, factSheet);
-    const agentId = getAgent1Id();
+    const agentId = getAgentId('agent1');
 
     console.log(`[foundryAnalysisService] Sending application to Foundry agent (${agentId})...`);
     
