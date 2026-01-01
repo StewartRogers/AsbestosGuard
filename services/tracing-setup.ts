@@ -36,15 +36,11 @@ if (!globalAny._azureMonitorInitialized && connectionString) {
       azureMonitorExporterOptions: {
         connectionString: connectionString
       },
-      // Export spans immediately for faster visibility
-      traceExportIntervalMillis: 500,
-      metricExportIntervalMillis: 500,
       samplingRatio: 1
     });
     
     console.log('[tracing-setup] ✅ Azure Monitor OpenTelemetry initialized');
     console.log('[tracing-setup]    Connection: ' + connectionString.substring(0, 45) + '...');
-    console.log('[tracing-setup]    Export interval: 500ms');
     
     // Create a test span to verify tracing is working
     const { trace } = await import('@opentelemetry/api');

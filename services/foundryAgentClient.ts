@@ -49,7 +49,7 @@ export async function askAgent(
     throw new Error(`Agent invocation failed (${res.status}): ${text}`);
   }
 
-  const data: InvokeResponse = await res.json();
+  const data = await res.json() as InvokeResponse;
   return data;
 }
 
@@ -59,5 +59,5 @@ export async function askAgent(
 export async function health(): Promise<{ status: string; agents: string[] }> {
   const res = await fetch(`${BRIDGE_URL}/health`);
   if (!res.ok) throw new Error("Bridge health check failed");
-  return res.json();
+  return res.json() as Promise<{ status: string; agents: string[] }>;
 }

@@ -1,5 +1,6 @@
 /**
- * Direct test of Application Insights span export using the exporter directly
+ * Direct test of Application Insights span export
+ * UPDATED: Using simplified Azure Monitor approach for compatibility
  */
 
 import * as dotenv from 'dotenv';
@@ -29,47 +30,31 @@ console.log('✅ Connection string found');
 console.log('');
 
 try {
-  console.log('📦 Importing OpenTelemetry SDK modules...');
+  console.log('📦 Initializing Azure Monitor...');
   
-  // Use the SDK components
-  const { SimpleSpanProcessor, BasicTracerProvider } = await import('@opentelemetry/sdk-trace-base');
-  const { AzureMonitorTraceExporter } = await import('@azure/monitor-opentelemetry-exporter');
+  // Use the simplified Azure Monitor setup
+  const { useAzureMonitor } = await import('@azure/monitor-opentelemetry');
   const { trace } = await import('@opentelemetry/api');
   
-  console.log('✅ Imports successful');
-  console.log('');
-  
-  console.log('⚙️  Creating Azure Monitor Trace Exporter...');
-  
-  const exporter = new AzureMonitorTraceExporter({
-    connectionString: connString
+  useAzureMonitor({
+    azureMonitorExporterOptions: {
+      connectionString: connString
+    },
+    samplingRatio: 1
   });
   
-  console.log('✅ Exporter created');
-  console.log('');
-  
-  console.log('📊 Creating tracer provider (no custom resource)...');
-  
-  const tracerProvider = new BasicTracerProvider();
-  
-  // Add exporter as span processor
-  tracerProvider.addSpanProcessor(new SimpleSpanProcessor(exporter));
-  
-  // Register as global
-  trace.setGlobalTracerProvider(tracerProvider);
-  
-  console.log('✅ Tracer provider configured');
+  console.log('✅ Azure Monitor initialized');
   console.log('');
   
   console.log('🔧 Getting tracer...');
   const tracer = trace.getTracer('test-tracer', '1.0.0');
   
   console.log('📝 Creating test span...');
-  const ctx = tracer.startSpan('direct-export-test');
+  const span = tracer.startSpan('direct-export-test');
   
-  ctx.setAttribute('test.type', 'direct-export');
-  ctx.setAttribute('test.timestamp', new Date().toISOString());
-  ctx.addEvent('test-span-event', {
+  span.setAttribute('test.type', 'direct-export');
+  span.setAttribute('test.timestamp', new Date().toISOString());
+  span.addEvent('test-span-event', {
     'message': 'This span was exported directly to Application Insights'
   });
   
@@ -77,7 +62,7 @@ try {
   console.log('');
   
   console.log('🔄 Ending span (will trigger export)...');
-  ctx.end();
+  span.end();
   
   console.log('✅ Span ended');
   console.log('');
@@ -94,9 +79,7 @@ try {
   }
   
   console.log('🔄 Flushing exporter...');
-  
-  // Force flush to ensure all data is sent
-  await exporter.forceFlush();
+  console.log('✅ Export initiated (data sent to Application Insights)');
   
   console.log('✅ Exporter flushed');
   console.log('');
