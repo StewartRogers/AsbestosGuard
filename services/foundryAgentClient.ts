@@ -49,8 +49,14 @@ export async function askAgent(
     throw new Error(`Agent invocation failed (${res.status}): ${text}`);
   }
 
-  const data = await res.json() as InvokeResponse;
-  return data;
+  const data = await res.json();
+  // Runtime validation
+  if (!data || typeof data !== 'object' || 
+      typeof (data as any).agent_id !== 'string' || 
+      typeof (data as any).response !== 'string') {
+    throw new Error('Invalid response format from agent bridge');
+  }
+  return data as InvokeResponse;
 }
 
 /**
@@ -59,5 +65,12 @@ export async function askAgent(
 export async function health(): Promise<{ status: string; agents: string[] }> {
   const res = await fetch(`${BRIDGE_URL}/health`);
   if (!res.ok) throw new Error("Bridge health check failed");
-  return res.json() as Promise<{ status: string; agents: string[] }>;
+  const data = await res.json();
+  // Runtime validation
+  if (!data || typeof data !== 'object' || 
+      typeof (data as any).status !== 'string' || 
+      !Array.isArray((data as any).agents)) {
+    throw new Error('Invalid health check response format');
+  }
+  return data as { status: string; agents: string[] };
 }

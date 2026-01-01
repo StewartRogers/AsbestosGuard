@@ -36,7 +36,8 @@ if (!globalAny._azureMonitorInitialized && connectionString) {
       azureMonitorExporterOptions: {
         connectionString: connectionString
       },
-      samplingRatio: 1
+      // Sample 100% in dev, 10% in production for cost efficiency
+      samplingRatio: process.env.NODE_ENV === 'production' ? 0.1 : 1
     });
     
     console.log('[tracing-setup] ✅ Azure Monitor OpenTelemetry initialized');
