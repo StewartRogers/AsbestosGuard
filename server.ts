@@ -38,7 +38,9 @@ app.use(express.json());
 
 // Serve static files in production
 if (IS_PRODUCTION) {
-  const distPath = path.join(__dirname, 'dist');
+  // When compiled to dist-server/server.js, __dirname is dist-server
+  // So go up one level to find dist/
+  const distPath = path.join(__dirname, '..', 'dist');
   app.use(express.static(distPath));
   console.log(`Serving static files from: ${distPath}`);
 }
@@ -449,9 +451,15 @@ app.delete('/api/data/:key', async (req, res) => {
 });
 
 // Serve React app for all other routes (must be before app.listen)
+// Only serve index.html for non-API routes
 if (IS_PRODUCTION) {
-  app.use((req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  app.use((req, res, next) => {
+    // Skip API routes - don't serve index.html, let Express return 404 if route not found
+    if (req.path.startsWith('/api/') || req.path.startsWith('/__api/')) {
+      return next();
+    }
+    // When compiled to dist-server/server.js, __dirname is dist-server
+    res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
   });
 }
 

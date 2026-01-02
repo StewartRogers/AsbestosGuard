@@ -2,34 +2,25 @@
 #
 # AsbestosGuard Azure Deployment Script
 # ======================================
-# Single unified script for deploying AsbestosGuard to Azure
-# Handles both initial deployment and refresh deployments
+# Deploys the app to existing Azure resources only (no new resources created)
+# Required values come from environment variables (set in .env.local)
 #
-# Usage:
-#   ./deploy.sh <resource-group> <webapp-name> [options]
+# Required environment variables:
+#   RESOURCE_GROUP   Azure resource group name (must already exist)
+#   WEBAPP_NAME      Azure Web App name (must already exist)
 #
-# Options:
-#   --skip-infrastructure    Skip Bicep infrastructure deployment
-#   --skip-build            Skip building the application
-#   --app-name <name>       Application name for Bicep (default: asbestosguard)
-#   --environment <env>     Environment (dev|staging|prod, default: prod)
-#   --location <location>   Azure location (default: eastus)
-#
-# Environment Variables (can be set in .env.local):
+# Optional environment variables:
 #   AZURE_AI_FOUNDRY_PROJECT_ENDPOINT  Azure AI Foundry endpoint
 #   FOUNDRY_AGENT_1_ID                 Agent 1 ID
 #   FOUNDRY_AGENT_2_ID                 Agent 2 ID
 #   FOUNDRY_AGENT_3_ID                 Agent 3 ID
-#
-# Examples:
-#   # Full deployment (infrastructure + app)
-#   ./deploy.sh my-rg my-webapp
-#
-#   # Refresh deployment (app only, skip infrastructure)
-#   ./deploy.sh my-rg my-webapp --skip-infrastructure
-#
-#   # Custom environment
-#   ./deploy.sh my-rg my-webapp --environment staging --location westus
+#   FOUNDRY_AGENT_1_RESPONSES_URL      Agent 1 responses URL (for bridge)
+#   FOUNDRY_AGENT_2_RESPONSES_URL      Agent 2 responses URL (for bridge)
+#   FOUNDRY_AGENT_3_RESPONSES_URL      Agent 3 responses URL (for bridge)
+#   SKIP_BUILD                         If set to "true", skips build
+#   DEPLOY_BRIDGE                      If set to "true", deploys Python bridge service
+#   ACR_NAME                           Azure Container Registry name (if deploying bridge)
+#   BRIDGE_INSTANCE_NAME               Container Instance name (default: asbestosguard-bridge)
 
 set -e
 
@@ -59,39 +50,20 @@ print_info() {
     echo -e "${YELLOW}→ $1${NC}"
 }
 
-show_usage() {
-    cat << EOF
-Usage: $0 <resource-group> <webapp-name> [options]
+# Simple retry helper for transient Azure CLI failures
+retry_command() {
+    local attempts=0
+    local max_attempts=3
+    local delay=5
 
-Arguments:
-  resource-group    Azure resource group name
-  webapp-name       Azure web app name
-
-Options:
-  --skip-infrastructure    Skip Bicep infrastructure deployment (use for refresh)
-  --skip-build            Skip building the application
-  --app-name <name>       Application name for Bicep (default: asbestosguard)
-  --environment <env>     Environment (dev|staging|prod, default: prod)
-  --location <location>   Azure location (default: eastus)
-  --help                  Show this help message
-
-Examples:
-  # Full deployment (first time)
-  $0 my-rg my-webapp
-
-  # Refresh deployment (update app only)
-  $0 my-rg my-webapp --skip-infrastructure
-
-  # Custom environment
-  $0 my-rg my-webapp --environment staging --location westus
-
-Environment Variables (optional, can be set in .env.local):
-  AZURE_AI_FOUNDRY_PROJECT_ENDPOINT  Azure AI Foundry endpoint
-  FOUNDRY_AGENT_1_ID                 Agent 1 ID
-  FOUNDRY_AGENT_2_ID                 Agent 2 ID
-  FOUNDRY_AGENT_3_ID                 Agent 3 ID
-
-EOF
+    until "$@"; do
+        attempts=$((attempts + 1))
+        if [ $attempts -ge $max_attempts ]; then
+            return 1
+        fi
+        print_info "Command failed (attempt $attempts). Retrying in $delay seconds..."
+        sleep $delay
+    done
 }
 
 # Load environment variables from .env.local if present
@@ -102,91 +74,33 @@ if [ -f ".env.local" ]; then
     print_info "Loaded environment variables from .env.local"
 fi
 
-# Parse arguments
-SKIP_INFRASTRUCTURE=false
-SKIP_BUILD=false
-APP_NAME="asbestosguard"
-ENVIRONMENT="prod"
-LOCATION="eastus"
+SKIP_BUILD=${SKIP_BUILD:-false}
+DEPLOY_BRIDGE=${DEPLOY_BRIDGE:-false}
+BRIDGE_INSTANCE_NAME=${BRIDGE_INSTANCE_NAME:-asbestosguard-bridge}
 
-if [ "$#" -lt 2 ]; then
-    if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
-        show_usage
-        exit 0
+# Required env vars
+REQUIRED_ENV_VARS=(RESOURCE_GROUP WEBAPP_NAME)
+for var in "${REQUIRED_ENV_VARS[@]}"; do
+    if [ -z "${!var:-}" ]; then
+        print_error "Missing required environment variable: $var"
+        echo "Set it in .env.local or the environment."
+        exit 1
     fi
-    print_error "Missing required arguments"
-    echo ""
-    show_usage
-    exit 1
-fi
-
-RESOURCE_GROUP=$1
-WEBAPP_NAME=$2
-shift 2
-
-# Parse optional arguments
-while [ "$#" -gt 0 ]; do
-    case "$1" in
-        --skip-infrastructure)
-            SKIP_INFRASTRUCTURE=true
-            shift
-            ;;
-        --skip-build)
-            SKIP_BUILD=true
-            shift
-            ;;
-        --app-name)
-            if [ -z "$2" ] || [[ "$2" == --* ]]; then
-                print_error "--app-name requires a value"
-                exit 1
-            fi
-            APP_NAME="$2"
-            shift 2
-            ;;
-        --environment)
-            if [ -z "$2" ] || [[ "$2" == --* ]]; then
-                print_error "--environment requires a value (dev|staging|prod)"
-                exit 1
-            fi
-            ENVIRONMENT="$2"
-            shift 2
-            ;;
-        --location)
-            if [ -z "$2" ] || [[ "$2" == --* ]]; then
-                print_error "--location requires a value (e.g., eastus, westus2)"
-                exit 1
-            fi
-            LOCATION="$2"
-            shift 2
-            ;;
-        --help|-h)
-            show_usage
-            exit 0
-            ;;
-        *)
-            print_error "Unknown option: $1"
-            show_usage
-            exit 1
-            ;;
-    esac
 done
 
-# Validate environment value
-if [[ ! "$ENVIRONMENT" =~ ^(dev|staging|prod)$ ]]; then
-    print_error "Invalid environment: $ENVIRONMENT (must be dev, staging, or prod)"
-    exit 1
-fi
+RESOURCE_GROUP=$RESOURCE_GROUP
+WEBAPP_NAME=$WEBAPP_NAME
 
 print_header "AsbestosGuard Azure Deployment"
 print_info "Resource Group: $RESOURCE_GROUP"
 print_info "Web App Name: $WEBAPP_NAME"
-print_info "App Name: $APP_NAME"
-print_info "Environment: $ENVIRONMENT"
-print_info "Location: $LOCATION"
-if [ "$SKIP_INFRASTRUCTURE" = true ]; then
-    print_info "Mode: Refresh (skipping infrastructure)"
+if [ "$SKIP_BUILD" = true ]; then
+    print_info "Mode: App deploy using existing build (SKIP_BUILD=true)"
 else
-    print_info "Mode: Full deployment (infrastructure + app)"
+    print_info "Mode: App deploy with fresh build"
+fi
+if [ "$DEPLOY_BRIDGE" = true ]; then
+    print_info "Mode: Will also deploy Python bridge service"
 fi
 
 # ============================================================
@@ -227,7 +141,7 @@ AZURE_USER=$(az account show --query user.name -o tsv)
 print_success "Logged in as: $AZURE_USER"
 
 # Check required files
-REQUIRED_FILES=("package.json" "server.ts" "vite.config.ts" "infrastructure/main.bicep")
+REQUIRED_FILES=("package.json" "server.ts" "vite.config.ts")
 for file in "${REQUIRED_FILES[@]}"; do
     if [ ! -f "$file" ]; then
         print_error "Required file not found: $file"
@@ -237,81 +151,187 @@ done
 print_success "All required files present"
 
 # ============================================================
-# STEP 2: Deploy Infrastructure (if not skipped)
+# STEP 2: Validate Azure Resources (no creation)
 # ============================================================
-if [ "$SKIP_INFRASTRUCTURE" = false ]; then
-    print_header "Step 2: Deploying Azure Infrastructure"
+print_header "Step 2: Validating Existing Azure Resources"
+
+if ! az group show --name "$RESOURCE_GROUP" &> /dev/null; then
+    print_error "Resource group does not exist: $RESOURCE_GROUP"
+    exit 1
+fi
+print_success "Resource group found: $RESOURCE_GROUP"
+
+if ! az webapp show --resource-group "$RESOURCE_GROUP" --name "$WEBAPP_NAME" &> /dev/null; then
+    print_error "Web App does not exist: $WEBAPP_NAME in $RESOURCE_GROUP"
+    exit 1
+fi
+print_success "Web App found: $WEBAPP_NAME"
+
+# ============================================================
+# STEP 3: Deploy Python Bridge Service (if requested)
+# ============================================================
+if [ "$DEPLOY_BRIDGE" = true ]; then
+    print_header "Step 3: Deploying Python Bridge Service"
     
-    # Check if resource group exists, create if not
-    if ! az group show --name "$RESOURCE_GROUP" &> /dev/null; then
-        print_info "Creating resource group: $RESOURCE_GROUP"
-        az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
-        print_success "Resource group created"
-    else
-        print_info "Using existing resource group: $RESOURCE_GROUP"
-    fi
-    
-    # Prepare Bicep parameters
-    BICEP_PARAMS="appName=$APP_NAME environment=$ENVIRONMENT location=$LOCATION"
-    
-    # Add Foundry parameters if available
-    if [ -n "${AZURE_AI_FOUNDRY_PROJECT_ENDPOINT:-}" ]; then
-        BICEP_PARAMS="$BICEP_PARAMS foundryEndpoint=$AZURE_AI_FOUNDRY_PROJECT_ENDPOINT"
-        print_info "Including Azure AI Foundry configuration"
-    else
-        BICEP_PARAMS="$BICEP_PARAMS foundryEndpoint=https://placeholder.ai.azure.com"
-        print_info "No Foundry endpoint found, using placeholder (update in Azure Portal if needed)"
-    fi
-    
-    if [ -n "${FOUNDRY_AGENT_1_ID:-}" ]; then
-        BICEP_PARAMS="$BICEP_PARAMS foundryAgent1Id=$FOUNDRY_AGENT_1_ID"
-    fi
-    if [ -n "${FOUNDRY_AGENT_2_ID:-}" ]; then
-        BICEP_PARAMS="$BICEP_PARAMS foundryAgent2Id=$FOUNDRY_AGENT_2_ID"
-    fi
-    if [ -n "${FOUNDRY_AGENT_3_ID:-}" ]; then
-        BICEP_PARAMS="$BICEP_PARAMS foundryAgent3Id=$FOUNDRY_AGENT_3_ID"
-    fi
-    
-    # Deploy infrastructure
-    print_info "Deploying Bicep template..."
-    DEPLOYMENT_OUTPUT=$(az deployment group create \
-        --resource-group "$RESOURCE_GROUP" \
-        --template-file infrastructure/main.bicep \
-        --parameters $BICEP_PARAMS \
-        --query 'properties.outputs' \
-        -o json 2>&1)
-    
-    if [ $? -eq 0 ]; then
-        print_success "Infrastructure deployed successfully"
-        
-        # Extract outputs if available
-        WEBAPP_NAME_FROM_OUTPUT=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.webAppName.value // empty' 2>/dev/null || true)
-        if [ -n "$WEBAPP_NAME_FROM_OUTPUT" ]; then
-            WEBAPP_NAME="$WEBAPP_NAME_FROM_OUTPUT"
-            print_info "Web App Name from deployment: $WEBAPP_NAME"
+    # Check for required bridge variables
+    BRIDGE_VARS=(FOUNDRY_AGENT_1_RESPONSES_URL FOUNDRY_AGENT_2_RESPONSES_URL FOUNDRY_AGENT_3_RESPONSES_URL)
+    MISSING_BRIDGE_VARS=()
+    for var in "${BRIDGE_VARS[@]}"; do
+        if [ -z "${!var:-}" ]; then
+            MISSING_BRIDGE_VARS+=("$var")
         fi
-        
-        WEBAPP_URL=$(echo "$DEPLOYMENT_OUTPUT" | jq -r '.webAppUrl.value // empty' 2>/dev/null || true)
-        if [ -n "$WEBAPP_URL" ]; then
-            print_info "Web App URL: $WEBAPP_URL"
-        fi
-    else
-        print_error "Infrastructure deployment failed"
-        echo "$DEPLOYMENT_OUTPUT"
+    done
+    
+    if [ ${#MISSING_BRIDGE_VARS[@]} -gt 0 ]; then
+        print_error "Missing required bridge environment variables:"
+        for var in "${MISSING_BRIDGE_VARS[@]}"; do
+            echo "  - $var"
+        done
+        print_error "Set these in .env.local before deploying the bridge"
         exit 1
     fi
     
-    # Wait a moment for resources to be ready
-    print_info "Waiting for resources to be ready..."
-    sleep 10
+    # Check if ACR_NAME is set
+    if [ -z "${ACR_NAME:-}" ]; then
+        print_error "ACR_NAME must be set in .env.local to deploy bridge"
+        exit 1
+    fi
+    
+    # Check if ACR exists
+    if ! az acr show --resource-group "$RESOURCE_GROUP" --name "$ACR_NAME" &> /dev/null; then
+        print_error "Azure Container Registry not found: $ACR_NAME"
+        print_info "Create it with: az acr create --resource-group $RESOURCE_GROUP --name $ACR_NAME --sku Basic"
+        exit 1
+    fi
+    
+    # Build and push Docker image using ACR
+    print_info "Building Docker image in Azure Container Registry..."
+    if ! az acr build \
+        --registry "$ACR_NAME" \
+        --image asbestosguard-bridge:latest \
+        --file Dockerfile.bridge . \
+        --output none; then
+        print_error "Failed to build image in ACR"
+        exit 1
+    fi
+    print_success "Docker image built and pushed to ACR"
+    
+    # Tag and push to ACR
+    print_info "Tagging image..."
+    ACR_FQDN="${ACR_NAME}.azurecr.io"
+    
+    # Get ACR credentials
+    ACR_USERNAME=$(az acr credential show --name "$ACR_NAME" --query username -o tsv)
+    ACR_PASSWORD=$(az acr credential show --name "$ACR_NAME" --query "passwords[0].value" -o tsv)
+    
+    # Create or get managed identity for the bridge service
+    IDENTITY_NAME="${BRIDGE_INSTANCE_NAME}-identity"
+    print_info "Setting up managed identity for authentication..."
+    
+    if ! az identity show --resource-group "$RESOURCE_GROUP" --name "$IDENTITY_NAME" &> /dev/null; then
+        print_info "Creating managed identity: $IDENTITY_NAME"
+        az identity create \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$IDENTITY_NAME" \
+            --output none
+    else
+        print_info "Using existing managed identity: $IDENTITY_NAME"
+    fi
+    
+    # Get identity details
+    IDENTITY_ID=$(az identity show \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$IDENTITY_NAME" \
+        --query id -o tsv)
+    
+    IDENTITY_PRINCIPAL_ID=$(az identity show \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$IDENTITY_NAME" \
+        --query principalId -o tsv)
+    
+    # Get subscription ID for role assignment
+    SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+    
+    # Assign Cognitive Services User role to the identity
+    print_info "Assigning Cognitive Services User role..."
+    if ! az role assignment create \
+        --assignee-object-id "$IDENTITY_PRINCIPAL_ID" \
+        --role "Cognitive Services User" \
+        --scope "/subscriptions/$SUBSCRIPTION_ID" \
+        --output none 2>/dev/null; then
+        print_info "Role assignment already exists or user lacks permissions"
+    fi
+    print_success "Managed identity configured"
+    
+    # Delete existing container if it exists
+    if az container show --resource-group "$RESOURCE_GROUP" --name "$BRIDGE_INSTANCE_NAME" &> /dev/null; then
+        print_info "Removing existing container instance..."
+        az container delete --resource-group "$RESOURCE_GROUP" --name "$BRIDGE_INSTANCE_NAME" --yes --output none
+    fi
+    
+    # Create Container Instance with managed identity
+    print_info "Creating container instance with managed identity..."
+    # Use a DNS label for public access
+    DNS_LABEL="${BRIDGE_INSTANCE_NAME}-$(date +%s | tail -c 5)"
+    
+    if ! az container create \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$BRIDGE_INSTANCE_NAME" \
+        --image "${ACR_FQDN}/asbestosguard-bridge:latest" \
+        --registry-login-server "$ACR_FQDN" \
+        --registry-username "$ACR_USERNAME" \
+        --registry-password "$ACR_PASSWORD" \
+        --assign-identity "$IDENTITY_ID" \
+        --os-type Linux \
+        --ports 8001 \
+        --cpu 0.5 \
+        --memory 0.5 \
+        --environment-variables \
+            FOUNDRY_AGENT_1_RESPONSES_URL="$FOUNDRY_AGENT_1_RESPONSES_URL" \
+            FOUNDRY_AGENT_2_RESPONSES_URL="$FOUNDRY_AGENT_2_RESPONSES_URL" \
+            FOUNDRY_AGENT_3_RESPONSES_URL="$FOUNDRY_AGENT_3_RESPONSES_URL" \
+        --ip-address public \
+        --dns-name-label "$DNS_LABEL" \
+        --protocol TCP \
+        --restart-policy OnFailure \
+        --output none; then
+        print_error "Failed to create container instance"
+        exit 1
+    fi
+    
+    print_info "Waiting for container to start..."
+    sleep 5
+    
+    # Get container FQDN
+    BRIDGE_FQDN=$(az container show \
+        --resource-group "$RESOURCE_GROUP" \
+        --name "$BRIDGE_INSTANCE_NAME" \
+        --query ipAddress.fqdn -o tsv 2>/dev/null || true)
+    
+    if [ -n "$BRIDGE_FQDN" ]; then
+        print_success "Bridge service deployed: http://${BRIDGE_FQDN}:8001"
+        BRIDGE_SERVICE_URL="http://${BRIDGE_FQDN}:8001"
+    else
+        # Fallback to IP if FQDN not available
+        BRIDGE_IP=$(az container show \
+            --resource-group "$RESOURCE_GROUP" \
+            --name "$BRIDGE_INSTANCE_NAME" \
+            --query ipAddress.ip -o tsv 2>/dev/null || true)
+        if [ -n "$BRIDGE_IP" ]; then
+            print_success "Bridge service deployed: http://${BRIDGE_IP}:8001"
+            BRIDGE_SERVICE_URL="http://${BRIDGE_IP}:8001"
+        else
+            print_error "Could not retrieve container IP address"
+            exit 1
+        fi
+    fi
 else
-    print_header "Step 2: Skipping Infrastructure Deployment"
-    print_info "Using existing Azure resources"
+    print_header "Step 3: Skipping Bridge Service Deployment"
+    print_info "Set DEPLOY_BRIDGE=true to deploy the Python bridge service"
 fi
 
 # ============================================================
-# STEP 3: Build Application
+# STEP 4: Build Application
 # ============================================================
 if [ "$SKIP_BUILD" = false ]; then
     print_header "Step 3: Building Application"
@@ -332,9 +352,9 @@ if [ "$SKIP_BUILD" = false ]; then
     
     # Compile TypeScript server
     print_info "Compiling server..."
-    npx tsc server.ts --module ESNext --target ES2020 --moduleResolution=node --esModuleInterop --skipLibCheck
-    if [ ! -f "server.js" ]; then
-        print_error "Server compilation failed - server.js not found"
+    npx tsc
+    if [ ! -f "dist-server/server.js" ]; then
+        print_error "Server compilation failed - dist-server/server.js not found"
         exit 1
     fi
     print_success "Server compiled successfully"
@@ -350,7 +370,7 @@ print_header "Step 4: Configuring Application Settings"
 
 # Set application settings
 print_info "Updating application settings..."
-SETTINGS="NODE_ENV=production WEBSITE_NODE_DEFAULT_VERSION=18-lts SCM_DO_BUILD_DURING_DEPLOYMENT=true"
+SETTINGS="NODE_ENV=production WEBSITE_NODE_DEFAULT_VERSION=18-lts SCM_DO_BUILD_DURING_DEPLOYMENT=false"
 
 # Add Foundry settings if available
 if [ -n "${AZURE_AI_FOUNDRY_PROJECT_ENDPOINT:-}" ]; then
@@ -366,16 +386,32 @@ if [ -n "${FOUNDRY_AGENT_3_ID:-}" ]; then
     SETTINGS="$SETTINGS FOUNDRY_AGENT_3_ID=$FOUNDRY_AGENT_3_ID"
 fi
 
-az webapp config appsettings set \
+# Add bridge service URL if deployed
+if [ -n "${BRIDGE_SERVICE_URL:-}" ]; then
+    SETTINGS="$SETTINGS AGENT_BRIDGE_SERVICE_URL=$BRIDGE_SERVICE_URL"
+fi
+
+if retry_command az webapp config appsettings set \
     --resource-group "$RESOURCE_GROUP" \
     --name "$WEBAPP_NAME" \
     --settings $SETTINGS \
-    --output none
-
-if [ $? -eq 0 ]; then
+    --output none; then
     print_success "Application settings configured"
 else
-    print_error "Failed to configure application settings"
+    print_error "Failed to configure application settings after retries"
+    exit 1
+fi
+
+# Set startup command to ensure proper execution
+print_info "Configuring startup command..."
+if retry_command az webapp config set \
+    --resource-group "$RESOURCE_GROUP" \
+    --name "$WEBAPP_NAME" \
+    --startup-file "node dist-server/server.js" \
+    --output none; then
+    print_success "Startup command configured"
+else
+    print_error "Failed to configure startup command"
     exit 1
 fi
 
@@ -384,18 +420,40 @@ fi
 # ============================================================
 print_header "Step 5: Deploying Application to Azure"
 
+# Create deployment package
+print_info "Creating deployment package..."
+DEPLOY_PACKAGE="asbestosguard-deploy.zip"
+rm -f "$DEPLOY_PACKAGE"
+
+# Zip the necessary files
+print_info "Including dist, dist-server, node_modules, and package files..."
+zip -r "$DEPLOY_PACKAGE" \
+    dist/ \
+    dist-server/ \
+    node_modules/ \
+    package.json \
+    package-lock.json \
+    -x "node_modules/.cache/*" \
+    > /dev/null 2>&1
+
+if [ ! -f "$DEPLOY_PACKAGE" ]; then
+    print_error "Failed to create deployment package"
+    exit 1
+fi
+print_success "Deployment package created: $DEPLOY_PACKAGE"
+
 print_info "Starting deployment to: $WEBAPP_NAME"
-az webapp deploy \
+if retry_command az webapp deploy \
     --resource-group "$RESOURCE_GROUP" \
     --name "$WEBAPP_NAME" \
-    --src-path . \
+    --src-path "$DEPLOY_PACKAGE" \
     --type zip \
-    --async true
-
-if [ $? -eq 0 ]; then
+    --async true; then
     print_success "Deployment initiated successfully"
+    rm -f "$DEPLOY_PACKAGE"
 else
     print_error "Deployment failed"
+    rm -f "$DEPLOY_PACKAGE"
     exit 1
 fi
 
@@ -408,12 +466,21 @@ print_success "Application deployed to Azure"
 echo ""
 print_info "Web App Name: $WEBAPP_NAME"
 print_info "Resource Group: $RESOURCE_GROUP"
-print_info "URL: https://${WEBAPP_NAME}.azurewebsites.net"
+
+# Get the actual default hostname from Azure
+ACTUAL_HOSTNAME=$(az webapp show --resource-group "$RESOURCE_GROUP" --name "$WEBAPP_NAME" --query defaultHostName -o tsv 2>/dev/null || true)
+if [ -n "$ACTUAL_HOSTNAME" ]; then
+    print_info "URL: https://$ACTUAL_HOSTNAME"
+    DEPLOY_URL="https://$ACTUAL_HOSTNAME"
+else
+    print_info "URL: https://${WEBAPP_NAME}.azurewebsites.net"
+    DEPLOY_URL="https://${WEBAPP_NAME}.azurewebsites.net"
+fi
 echo ""
 echo -e "${CYAN}Next Steps:${NC}"
 echo "1. Wait 2-3 minutes for deployment to complete"
-echo "2. Visit: https://${WEBAPP_NAME}.azurewebsites.net"
-echo "3. Check health: curl https://${WEBAPP_NAME}.azurewebsites.net/api/health"
+echo "2. Visit: $DEPLOY_URL"
+echo "3. Check health: curl $DEPLOY_URL/api/health"
 echo "4. View logs: az webapp log tail --resource-group $RESOURCE_GROUP --name $WEBAPP_NAME"
 echo ""
 print_success "Deployment script completed successfully!"

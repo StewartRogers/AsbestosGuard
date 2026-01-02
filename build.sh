@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Installing production dependencies..."
-npm ci --omit=dev
+npm ci
 
 echo "Building frontend..."
 npm run build
