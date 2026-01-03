@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { ViewState, LicenseApplication, ApplicationStatus, LicenseType, ApplicationWizardData, EmployerFactSheet } from './types';
 import LandingPage from './pages/Landing';
+import EmployerLogin from './pages/Employer/EmployerLogin';
 import EmployerDashboard from './pages/Employer/EmployerDashboard';
 import NewApplicationForm from './pages/Employer/NewApplicationForm';
 import ApplicationDetail from './pages/Employer/ApplicationDetail';
+import AdminLogin from './pages/Admin/AdminLogin';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ApplicationReview from './pages/Admin/ApplicationReview';
 import FactSheetList from './pages/Admin/FactSheetList';
@@ -141,7 +143,10 @@ const INITIAL_FACT_SHEETS: EmployerFactSheet[] = [
 ];
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<ViewState>('LANDING');
+  const [currentView, setCurrentView] = useState<ViewState>('EMPLOYER_LOGIN');
+  const [isEmployerAuthenticated, setIsEmployerAuthenticated] = useState(false);
+  const [employerEmail, setEmployerEmail] = useState<string>('');
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   
   // Initialize from file-based storage via API
   const [applications, setApplications] = useState<LicenseApplication[]>([]);
@@ -179,8 +184,50 @@ export default function App() {
   }, []);
 
   const handleNavigate = (view: ViewState) => {
+    // Protect admin routes
+    if (view.startsWith('ADMIN_') && view !== 'ADMIN_LOGIN' && !isAdminAuthenticated) {
+      setCurrentView('ADMIN_LOGIN');
+      return;
+    }
+    // Protect employer routes (except login)
+    if (view.startsWith('EMPLOYER_') && view !== 'EMPLOYER_LOGIN' && !isEmployerAuthenticated) {
+      setCurrentView('EMPLOYER_LOGIN');
+      return;
+    }
     setCurrentView(view);
     window.scrollTo(0, 0);
+  };
+
+  const handleEmployerLogin = (email: string, password: string) => {
+    // Demo: accept any email/password combination
+    if (email && password) {
+      setIsEmployerAuthenticated(true);
+      setEmployerEmail(email);
+      handleNavigate('EMPLOYER_DASHBOARD');
+    } else {
+      alert('Please enter both email and password.');
+    }
+  };
+
+  const handleEmployerLogout = () => {
+    setIsEmployerAuthenticated(false);
+    setEmployerEmail('');
+    handleNavigate('EMPLOYER_LOGIN');
+  };
+
+  const handleAdminLogin = (username: string, password: string) => {
+    // Simple authentication check (in production, this should be server-side)
+    if (username === 'admin' && password === 'admin123') {
+      setIsAdminAuthenticated(true);
+      handleNavigate('ADMIN_DASHBOARD');
+    } else {
+      alert('Invalid credentials. Please try again.');
+    }
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdminAuthenticated(false);
+    handleNavigate('EMPLOYER_LOGIN');
   };
 
   const handleCreateApplication = (app: LicenseApplication) => {
@@ -279,11 +326,15 @@ export default function App() {
     switch (currentView) {
       case 'LANDING':
         return <LandingPage onNavigate={handleNavigate} />;
+      case 'EMPLOYER_LOGIN':
+        return <EmployerLogin 
+          onLogin={handleEmployerLogin}
+        />;
       case 'EMPLOYER_DASHBOARD':
         return <EmployerDashboard 
           applications={applications} 
           onNewClick={() => handleNavigate('EMPLOYER_NEW_FORM')} 
-          onLogout={() => handleNavigate('LANDING')}
+          onLogout={handleEmployerLogout}
           onViewClick={handleEmployerViewApp}
         />;
       case 'EMPLOYER_NEW_FORM':
@@ -299,12 +350,17 @@ export default function App() {
           application={employerApp} 
           onBack={() => handleNavigate('EMPLOYER_DASHBOARD')} 
         />;
+      case 'ADMIN_LOGIN':
+        return <AdminLogin 
+          onLogin={handleAdminLogin} 
+          onCancel={() => handleNavigate('EMPLOYER_LOGIN')} 
+        />;
       case 'ADMIN_DASHBOARD':
         return <AdminDashboard 
           applications={applications}
           factSheets={factSheets}
           onReviewClick={handleSelectAppForReview}
-          onLogout={() => handleNavigate('LANDING')}
+          onLogout={handleAdminLogout}
           onDataImport={handleDataImport}
         />;
       case 'ADMIN_REVIEW':
@@ -360,41 +416,57 @@ export default function App() {
           />
         );
       default:
-        return <LandingPage onNavigate={handleNavigate} />;
+        return <EmployerLogin onLogin={handleEmployerLogin} />;
     }
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <header className="bg-slate-900 text-white shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => handleNavigate('LANDING')}>
-            <ShieldCheck className="h-8 w-8 text-brand-500" />
-            <span className="text-xl font-bold tracking-tight">AsbestosGuard</span>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => isEmployerAuthenticated ? handleNavigate('EMPLOYER_DASHBOARD') : handleNavigate('EMPLOYER_LOGIN')}>
+              <ShieldCheck className="h-8 w-8 text-brand-500" />
+              <span className="text-xl font-bold tracking-tight">AsbestosGuard</span>
+            </div>
+            <div className="flex items-center space-x-6">
+              {isEmployerAuthenticated && (
+                <span className="text-sm text-blue-300">{employerEmail}</span>
+              )}
+              {isAdminAuthenticated && (
+                <span className="text-sm text-brand-400">Admin Mode</span>
+              )}
+              <div className="text-sm text-slate-400">
+                Licensing & Compliance Portal
+              </div>
+              {!isAdminAuthenticated && (
+                <button
+                  onClick={() => handleNavigate('ADMIN_LOGIN')}
+                  className="text-sm text-slate-300 hover:text-white transition-colors font-medium"
+                >
+                  Admin Login
+                </button>
+              )}
+            </div>
           </div>
-          <div className="text-sm text-slate-400">
-            Licensing & Compliance Portal
+        </header>
+        <main className="flex-grow">
+          {renderContent()}
+        </main>
+        <footer className="bg-slate-900 text-slate-400 py-8">
+          <div className="max-w-7xl mx-auto px-4 text-center text-sm">
+            <div className="mb-4">
+               &copy; {new Date().getFullYear()} AsbestosGuard Regulatory Authority. All rights reserved.
+            </div>
+            <div className="border-t border-slate-800 pt-4">
+              <button 
+                onClick={() => handleNavigate('ADMIN_FACT_SHEETS')}
+                className="text-slate-600 hover:text-slate-400 text-xs transition-colors"
+              >
+                Manage Fact Sheets (Test)
+              </button>
+            </div>
           </div>
-        </div>
-      </header>
-      <main className="flex-grow">
-        {renderContent()}
-      </main>
-      <footer className="bg-slate-900 text-slate-400 py-8">
-        <div className="max-w-7xl mx-auto px-4 text-center text-sm">
-          <div className="mb-4">
-             &copy; {new Date().getFullYear()} AsbestosGuard Regulatory Authority. All rights reserved.
-          </div>
-          <div className="border-t border-slate-800 pt-4">
-            <button 
-              onClick={() => handleNavigate('ADMIN_FACT_SHEETS')}
-              className="text-slate-600 hover:text-slate-400 text-xs transition-colors"
-            >
-              Manage Fact Sheets (Test)
-            </button>
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
-}
+        </footer>
+      </div>
+    );
+  }

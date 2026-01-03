@@ -134,9 +134,11 @@ export interface EmployerFactSheet {
 
 export type ViewState = 
   | 'LANDING'
+  | 'EMPLOYER_LOGIN'
   | 'EMPLOYER_DASHBOARD'
   | 'EMPLOYER_NEW_FORM'
   | 'EMPLOYER_APP_DETAIL'
+  | 'ADMIN_LOGIN'
   | 'ADMIN_DASHBOARD'
   | 'ADMIN_REVIEW'
   | 'ADMIN_FACT_SHEETS'
