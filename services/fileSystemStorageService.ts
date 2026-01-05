@@ -1,11 +1,14 @@
 import fs from 'fs';
-import { join } from 'path-browserify';
+import path from 'path';
 
-const DATA_DIR = '/data'; // Adjusted for browser compatibility
+// Use a project-relative directory so we don't attempt to write to the filesystem root
+const DATA_DIR = typeof window === 'undefined'
+  ? path.resolve(process.cwd(), 'data')
+  : '/data';
 
 // Ensure the data directory exists (server-side only)
 if (typeof window === 'undefined' && !fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR);
+  fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
 /**
@@ -14,7 +17,7 @@ if (typeof window === 'undefined' && !fs.existsSync(DATA_DIR)) {
  * @returns {Promise<any>} - The parsed JSON data.
  */
 export const readFromFile = async (filename: string): Promise<any> => {
-  const filePath = join(DATA_DIR, filename);
+  const filePath = path.join(DATA_DIR, filename);
   try {
     if (!fs.existsSync(filePath)) {
       return null; // File does not exist
@@ -34,7 +37,7 @@ export const readFromFile = async (filename: string): Promise<any> => {
  * @returns {Promise<void>} - Resolves when the write is complete.
  */
 export const writeToFile = async (filename: string, data: any): Promise<void> => {
-  const filePath = join(DATA_DIR, filename);
+  const filePath = path.join(DATA_DIR, filename);
   try {
     const jsonData = JSON.stringify(data, null, 2);
     await fs.promises.writeFile(filePath, jsonData, 'utf-8');

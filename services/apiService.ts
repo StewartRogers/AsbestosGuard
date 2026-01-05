@@ -3,6 +3,15 @@ import axios from 'axios';
 // Determine API base URL based on environment
 // In production (Azure), use relative URLs; in development, use localhost
 const getApiBaseUrl = () => {
+  // Allow explicit override for tests or containerized deployments
+  const explicitBase = typeof process !== 'undefined'
+    ? process.env.API_BASE_URL || process.env.VITE_API_BASE_URL
+    : undefined;
+
+  if (explicitBase) {
+    return explicitBase.replace(/\/$/, '');
+  }
+
   // Check if we're in a browser environment
   if (typeof window !== 'undefined') {
     // If running in production (deployed), use relative URL
@@ -10,7 +19,7 @@ const getApiBaseUrl = () => {
       return '/api'; // Use relative URL (same origin)
     }
   }
-  
+
   // In development or server-side, use localhost
   return 'http://localhost:5000/api';
 };
