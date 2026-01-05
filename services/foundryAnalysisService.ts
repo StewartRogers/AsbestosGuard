@@ -84,8 +84,25 @@ export async function analyzeApplication(
       webParsed.searchSummary || webPresenceValidation.searchSummary
     ].filter(Boolean);
 
+    const fallbackRiskScore =
+      policyParsed.riskScore ||
+      policyParsed.risk_score ||
+      factParsed.riskScore ||
+      factParsed.risk_score ||
+      webParsed.riskScore ||
+      webParsed.risk_score ||
+      'MEDIUM';
+
+    const fallbackRecommendation =
+      policyParsed.recommendation ||
+      policyParsed.decision ||
+      factParsed.recommendation ||
+      factParsed.decision ||
+      webParsed.recommendation ||
+      '';
+
     const analysisResult: AIAnalysisResult = {
-      riskScore: mapRiskScore(policyParsed.riskScore || policyParsed.risk_score || 'MEDIUM'),
+      riskScore: mapRiskScore(fallbackRiskScore),
       isTestAccount: policyParsed.isTestAccount || policyParsed.is_test_account || false,
       summary: summaryPieces.join(' ') || 'Automated analysis completed.',
       internalRecordValidation: {
@@ -113,7 +130,7 @@ export async function analyzeApplication(
       },
       concerns: policyParsed.concerns || [],
       policyViolations: policyParsed.policyViolations || policyParsed.policy_violations || [],
-      recommendation: mapRecommendation(policyParsed.recommendation || policyParsed.decision || ''),
+      recommendation: mapRecommendation(fallbackRecommendation),
       requiredActions: policyParsed.requiredActions || policyParsed.required_actions || [],
       sources: [
         { title: 'Agent1: Fact Sheet vs Application', uri: '' },
