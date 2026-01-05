@@ -1,44 +1,138 @@
 import { LicenseApplication, AIAnalysisResult, EmployerFactSheet } from "../types";
-import { askAgent, InvokeResponse } from "./foundryAgentClient.js";
+import { askAgent } from "./foundryAgentClient.js";
 import { getAgentId } from "./config.js";
 
-/**
- * Foundry-based analysis service using Azure AI Foundry agents
- * Uses agent1 (EFSAGENT) to analyze license applications
- */
+type AgentKey = 'agent1' | 'agent2' | 'agent3';
+
+interface AgentStepResult {
+  prompt: string;
+  raw: string;
+  parsed: any;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number | null;
+  status: 'success' | 'failed' | 'disabled';
+  agentId?: string;
+  agentKey?: AgentKey;
+}
 
 /**
- * Sends application to Foundry agent1 for analysis
- * Returns structured AIAnalysisResult matching the expected format
+ * Sends application through all three Foundry agents and stitches the results together.
+ * - Agent1: Fact sheet vs application comparison
+ * - Agent2: Policy/risk assessment
+ * - Agent3: Business profile & web search risk scan
  */
 export async function analyzeApplication(
   application: LicenseApplication,
   factSheet?: EmployerFactSheet
 ): Promise<AIAnalysisResult> {
   try {
-    // Build a comprehensive prompt for the Foundry agent
-    const prompt = buildAnalysisPrompt(application, factSheet);
-    const agentId = getAgentId('agent1');
+    const [fact, policy, web] = await Promise.all([
+      runAgentStep('agent1', buildFactCheckPrompt(application, factSheet)),
+      runAgentStep('agent2', buildPolicyPrompt(application, factSheet)),
+      runAgentStep('agent3', buildWebPrompt(application))
+    ]);
 
-    console.log(`[foundryAnalysisService] Sending application to Foundry agent (${agentId})...`);
-    
-    // Call agent1 with the analysis prompt
-    const agentResponse: InvokeResponse = await askAgent(agentId, prompt, { timeoutMs: 60000 });
-
-    console.log('[foundryAnalysisService] Received response from agent1');
-
-    // Parse and structure the agent response
-    const analysisResult = parseAgentResponse(application, agentResponse.response, factSheet);
     const executedAt = new Date().toISOString();
-    (analysisResult as any).executedAt = executedAt;
-    analysisResult.debug = {
-      prompt,
-      rawResponse: agentResponse.response,
-      agentId,
-      durationMs: agentResponse.duration_ms,
+    const factParsed = fact.parsed || {};
+    const policyParsed = policy.parsed || {};
+    const webParsed = web.parsed || {};
+
+    const mapRiskScore = (score: string): 'LOW' | 'MEDIUM' | 'HIGH' | 'INVALID' => {
+      const lower = (score || '').toUpperCase().trim();
+      if (lower === 'LOW') return 'LOW';
+      if (lower === 'MEDIUM') return 'MEDIUM';
+      if (lower === 'HIGH') return 'HIGH';
+      return 'INVALID';
+    };
+
+    const mapRecommendation = (rec: string): 'APPROVE' | 'REJECT' | 'REQUEST_INFO' | 'INVALID_APPLICATION' | 'MANUAL_REVIEW_REQUIRED' => {
+      const lower = (rec || '').toLowerCase();
+      if (lower.includes('approve')) return 'APPROVE';
+      if (lower.includes('reject')) return 'REJECT';
+      if (lower.includes('request') || lower.includes('info')) return 'REQUEST_INFO';
+      if (lower.includes('invalid')) return 'INVALID_APPLICATION';
+      return 'MANUAL_REVIEW_REQUIRED';
+    };
+
+    const internalRecordValidation = factParsed.internalRecordValidation || factParsed.internal_record_validation || {
+      recordFound: !!factSheet,
+      concerns: factParsed.concerns || []
+    };
+
+    const geographicValidation = webParsed.geographicValidation || webParsed.geographic_validation || {
+      addressExistsInBC: false,
+      addressConflicts: []
+    };
+
+    const webPresenceValidation = webParsed.webPresenceValidation || webParsed.web_presence_validation || {
+      companyFound: !!webParsed.companyFound,
+      relevantIndustry: webParsed.relevantIndustry ?? false,
+      searchSummary: webParsed.searchSummary || ''
+    };
+
+    const certificationAnalysis = policyParsed.certificationAnalysis || policyParsed.certification_analysis || {
+      totalWorkers: application.wizardData?.firmWorkersCount ?? null,
+      certifiedWorkers: application.wizardData?.firmCertLevel1to4 ?? null,
+      complianceRatio: null,
+      meetsRequirement: null
+    };
+
+    const summaryPieces = [
+      factParsed.summary,
+      policyParsed.summary,
+      webParsed.searchSummary || webPresenceValidation.searchSummary
+    ].filter(Boolean);
+
+    const analysisResult: AIAnalysisResult = {
+      riskScore: mapRiskScore(policyParsed.riskScore || policyParsed.risk_score || 'MEDIUM'),
+      isTestAccount: policyParsed.isTestAccount || policyParsed.is_test_account || false,
+      summary: summaryPieces.join(' ') || 'Automated analysis completed.',
+      internalRecordValidation: {
+        recordFound: internalRecordValidation.recordFound ?? false,
+        accountNumber: internalRecordValidation.accountNumber ?? null,
+        overdueBalance: internalRecordValidation.overdueBalance ?? null,
+        statusMatch: internalRecordValidation.statusMatch ?? null,
+        concerns: internalRecordValidation.concerns || []
+      },
+      geographicValidation: {
+        addressExistsInBC: geographicValidation.addressExistsInBC ?? false,
+        addressConflicts: geographicValidation.addressConflicts || [],
+        verifiedLocation: geographicValidation.verifiedLocation ?? null
+      },
+      webPresenceValidation: {
+        companyFound: webPresenceValidation.companyFound ?? false,
+        relevantIndustry: webPresenceValidation.relevantIndustry ?? false,
+        searchSummary: webPresenceValidation.searchSummary || ''
+      },
+      certificationAnalysis: {
+        totalWorkers: certificationAnalysis.totalWorkers ?? null,
+        certifiedWorkers: certificationAnalysis.certifiedWorkers ?? null,
+        complianceRatio: certificationAnalysis.complianceRatio ?? null,
+        meetsRequirement: certificationAnalysis.meetsRequirement ?? null
+      },
+      concerns: policyParsed.concerns || [],
+      policyViolations: policyParsed.policyViolations || policyParsed.policy_violations || [],
+      recommendation: mapRecommendation(policyParsed.recommendation || policyParsed.decision || ''),
+      requiredActions: policyParsed.requiredActions || policyParsed.required_actions || [],
+      sources: [
+        { title: 'Agent1: Fact Sheet vs Application', uri: '' },
+        { title: 'Agent2: Risk & Policy Assessment', uri: '' },
+        { title: 'Agent3: Business Profile & Web Search', uri: '' },
+      ],
+      factSheetSummary: factParsed.summary || (factSheet ? `Matched to ${factSheet.employerLegalName} (ID: ${factSheet.employerId})` : 'No fact sheet match'),
+      webPresenceSummary: webParsed.searchSummary || undefined,
+      debug: {
+        perStepDebug: {
+          fact,
+          policy,
+          web
+        },
+        executedAt
+      } as any,
       executedAt
     } as any;
-    
+
     return analysisResult;
   } catch (error) {
     console.error('[foundryAnalysisService] Analysis failed:', error);
@@ -46,202 +140,120 @@ export async function analyzeApplication(
   }
 }
 
-/**
- * Builds a comprehensive prompt for the Foundry agent
- */
-function buildAnalysisPrompt(application: LicenseApplication, factSheet?: EmployerFactSheet): string {
-  const wizard = application.wizardData || {} as any;
-  
-  // Simpler, more direct prompt for the agent
-  const companyName = wizard.firmLegalName || application.companyName || 'Unknown Company';
-  const accountNumber = wizard.firmAccountNumber || 'N/A';
-  const hasFactSheet = factSheet ? 'Yes' : 'No';
-  const overdueBalance = factSheet?.overdueBalance || 0;
-  const yearsInBusiness = wizard.firmNopDate ? 
-    new Date().getFullYear() - new Date(wizard.firmNopDate).getFullYear() : 
-    application.safetyHistory?.yearsExperience || 0;
+function buildFactCheckPrompt(application: LicenseApplication, factSheet?: EmployerFactSheet): string {
+  const wizard = application.wizardData || ({} as any);
+  const accountNumber = wizard.firmAccountNumber || factSheet?.employerId || 'Unknown';
 
-  const prompt = `Analyze this asbestos work license application:
-
-Company: ${companyName}
-Account Number: ${accountNumber}
-Workers: ${wizard.firmWorkersCount || 0}
-Years in Business: ${yearsInBusiness}
-Has Internal Record: ${hasFactSheet}
-Overdue Balance: $${overdueBalance}
-
-Certifications:
-- Level 1-4 Certified: ${wizard.firmCertLevel1to4 || 0}
-- Level 3 Certified: ${wizard.firmCertLevel3 || 0}
-
-History Flags:
-- Refused in Last 7 Years: ${wizard.historyRefused7Years ? 'Yes' : 'No'}
-- Enforcement Action: ${wizard.historyRefusedAuth ? 'Yes' : 'No'}
-- Non-Compliance: ${wizard.historyNonCompliance ? 'Yes' : 'No'}
-- Suspended: ${wizard.historySuspended ? 'Yes' : 'No'}
-
-Compliance Acknowledgements:
-- Outstanding Amounts: ${wizard.ackOutstandingAmounts ? 'Acknowledged' : 'Not Acknowledged'}
-- Compliance: ${wizard.ackCompliance ? 'Acknowledged' : 'Not Acknowledged'}
-- Enforcement: ${wizard.ackEnforcement ? 'Acknowledged' : 'Not Acknowledged'}
-
-Respond ONLY with valid JSON (no other text):
+  return `You are Agent1. Compare the Employer Fact Sheet (EFS) to the asbestos license application and report mismatches.
+Return ONLY JSON with this shape:
 {
-  "riskScore": "LOW|MEDIUM|HIGH",
-  "isTestAccount": false,
-  "summary": "Brief risk assessment summary",
+  "summary": "brief sentence about whether EFS matches the application",
   "internalRecordValidation": {
-    "recordFound": ${hasFactSheet === 'Yes' ? 'true' : 'false'},
+    "recordFound": boolean,
     "accountNumber": "${accountNumber}",
-    "overdueBalance": ${overdueBalance},
-    "statusMatch": true,
-    "concerns": []
+    "overdueBalance": ${factSheet?.overdueBalance ?? 0},
+    "statusMatch": boolean,
+    "concerns": ["list any mismatches or missing data"]
   },
-  "geographicValidation": {
-    "addressExistsInBC": true,
-    "addressConflicts": [],
-    "verifiedLocation": "BC"
-  },
-  "webPresenceValidation": {
-    "companyFound": true,
-    "relevantIndustry": true,
-    "searchSummary": "Company operates in asbestos abatement sector"
-  },
-  "certificationAnalysis": {
-    "totalWorkers": ${wizard.firmWorkersCount || 0},
-    "certifiedWorkers": ${Math.min(wizard.firmCertLevel1to4 || 0, wizard.firmWorkersCount || 0)},
-    "complianceRatio": ${((wizard.firmCertLevel1to4 || 0) / Math.max(wizard.firmWorkersCount || 1, 1)).toFixed(2)},
-    "meetsRequirement": true
-  },
-  "concerns": [],
-  "policyViolations": [],
-  "recommendation": "APPROVE",
-  "requiredActions": [],
-  "sources": [{"title": "Foundry Agent Analysis", "uri": ""}]
-}`;
-
-  return prompt;
+  "riskScore": "LOW|MEDIUM|HIGH"
 }
 
-/**
- * Parses the agent response and structures it as AIAnalysisResult
- */
-function parseAgentResponse(
-  application: LicenseApplication,
-  agentResponse: string,
-  factSheet?: EmployerFactSheet
-): AIAnalysisResult {
-  let parsed: any;
+Application Data: ${JSON.stringify(application)}
+Employer Fact Sheet: ${JSON.stringify(factSheet || {})}`;
+}
 
-  try {
-    // Trim response and remove common formatting
-    const cleanResponse = agentResponse.trim();
-    
-    // Try to extract JSON from agent response (may contain markdown code blocks or extra text)
-    let jsonStr = cleanResponse;
-    
-    // Remove markdown code blocks if present
-    if (cleanResponse.includes('```json')) {
-      const match = cleanResponse.match(/```json\s*([\s\S]*?)\s*```/);
-      if (match) jsonStr = match[1];
-    } else if (cleanResponse.includes('```')) {
-      const match = cleanResponse.match(/```\s*([\s\S]*?)\s*```/);
-      if (match) jsonStr = match[1];
-    }
-    
-    // Extract JSON object if it's embedded in text
-    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      jsonStr = jsonMatch[0];
-    }
-    
-    console.log('[foundryAnalysisService] Attempting to parse JSON...');
-    parsed = JSON.parse(jsonStr);
-    console.log('[foundryAnalysisService] JSON parsed successfully');
-  } catch (error) {
-    console.error('[foundryAnalysisService] Failed to parse agent JSON:');
-    console.error('[foundryAnalysisService] Raw response:', agentResponse);
-    console.error('[foundryAnalysisService] Parse error:', (error as Error).message);
-    
-    // Return a default analysis if parsing fails
-    parsed = {
-      riskScore: 'MEDIUM',
-      isTestAccount: false,
-      summary: 'Analysis could not be completed due to parsing error. Please review manually.',
-      internalRecordValidation: { recordFound: false, concerns: ['Unable to parse agent response'] },
-      geographicValidation: { addressExistsInBC: false, addressConflicts: [] },
-      webPresenceValidation: { companyFound: false, relevantIndustry: false, searchSummary: 'Analysis incomplete' },
-      certificationAnalysis: { complianceRatio: 0, meetsRequirement: false },
-      concerns: ['Agent response parsing failed'],
-      policyViolations: [],
-      recommendation: 'MANUAL_REVIEW_REQUIRED',
-      requiredActions: ['Manual review required - agent response invalid'],
-      sources: [{ title: 'Foundry Agent Analysis - Parse Failed', uri: '' }]
-    };
+function buildPolicyPrompt(application: LicenseApplication, factSheet?: EmployerFactSheet): string {
+  const wizard = application.wizardData || ({} as any);
+  return `You are Agent2. Perform an AI-based risk and policy assessment for this asbestos license application.
+Return ONLY JSON with fields: riskScore, summary, concerns, policyViolations (array), recommendation, requiredActions (array), certificationAnalysis { totalWorkers, certifiedWorkers, complianceRatio, meetsRequirement }, isTestAccount.
+
+Key rules:
+- Consider worker certification levels, history flags, and overdue balances (${factSheet?.overdueBalance ?? 0}).
+- Highlight any policy violations and missing information.
+
+Application Data: ${JSON.stringify(application)}
+Employer Fact Sheet: ${JSON.stringify(factSheet || {})}
+Workers certified level 1-4: ${wizard.firmCertLevel1to4 || 0} of ${wizard.firmWorkersCount || 0}`;
+}
+
+function buildWebPrompt(application: LicenseApplication): string {
+  const wizard = application.wizardData || ({} as any);
+  const companyName = wizard.firmLegalName || application.companyName || 'Unknown Company';
+  const address = wizard.firmPhysicalAddress || wizard.firmMailingAddress || 'Address not provided';
+
+  return `You are Agent3. Perform a web search style scan to build a business profile and flag risks for asbestos work.
+Return ONLY JSON:
+{
+  "searchSummary": "short summary of what the web search suggests about the company",
+  "webPresenceValidation": { "companyFound": boolean, "relevantIndustry": boolean, "searchSummary": "" },
+  "geographicValidation": { "addressExistsInBC": boolean, "addressConflicts": [], "verifiedLocation": "" },
+  "redFlags": ["serious issues"],
+  "yellowFlags": ["cautionary items"],
+  "riskScore": "LOW|MEDIUM|HIGH"
+}
+
+Company: ${companyName}
+Address: ${address}
+
+Full Application Data: ${JSON.stringify(application)}`;
+}
+
+function tryParseJson(raw: string): any | null {
+  if (!raw) return null;
+  const clean = raw.trim();
+  let jsonStr = clean;
+
+  if (clean.includes('```json')) {
+    const match = clean.match(/```json\s*([\s\S]*?)\s*```/);
+    if (match) jsonStr = match[1];
+  } else if (clean.includes('```')) {
+    const match = clean.match(/```\s*([\s\S]*?)\s*```/);
+    if (match) jsonStr = match[1];
   }
 
-  // Map recommendation string to expected enum values
-  const mapRecommendation = (rec: string): 'APPROVE' | 'REJECT' | 'REQUEST_INFO' | 'INVALID_APPLICATION' | 'MANUAL_REVIEW_REQUIRED' => {
-    const lower = (rec || '').toLowerCase();
-    if (lower.includes('approve')) return 'APPROVE';
-    if (lower.includes('reject')) return 'REJECT';
-    if (lower.includes('request') || lower.includes('info')) return 'REQUEST_INFO';
-    if (lower.includes('invalid')) return 'INVALID_APPLICATION';
-    return 'MANUAL_REVIEW_REQUIRED';
-  };
+  const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+  if (jsonMatch) jsonStr = jsonMatch[0];
 
-  // Map risk score
-  const mapRiskScore = (score: string): 'LOW' | 'MEDIUM' | 'HIGH' | 'INVALID' => {
-    const lower = (score || '').toUpperCase().trim();
-    if (lower === 'LOW') return 'LOW';
-    if (lower === 'MEDIUM') return 'MEDIUM';
-    if (lower === 'HIGH') return 'HIGH';
-    return 'INVALID';
-  };
+  try {
+    return JSON.parse(jsonStr);
+  } catch (err) {
+    console.error('[foundryAnalysisService] JSON parse failed for agent response');
+    return null;
+  }
+}
 
-  // Build AIAnalysisResult
-  const result: AIAnalysisResult = {
-    riskScore: mapRiskScore(parsed.riskScore || 'MEDIUM'),
-    isTestAccount: parsed.isTestAccount || false,
-    summary: parsed.summary || 'Analysis completed with default values',
-    internalRecordValidation: {
-      recordFound: parsed.internalRecordValidation?.recordFound ?? false,
-      accountNumber: parsed.internalRecordValidation?.accountNumber ?? null,
-      overdueBalance: parsed.internalRecordValidation?.overdueBalance ?? null,
-      statusMatch: parsed.internalRecordValidation?.statusMatch ?? null,
-      concerns: parsed.internalRecordValidation?.concerns || []
-    },
-    geographicValidation: {
-      addressExistsInBC: parsed.geographicValidation?.addressExistsInBC ?? false,
-      addressConflicts: parsed.geographicValidation?.addressConflicts || [],
-      verifiedLocation: parsed.geographicValidation?.verifiedLocation ?? null
-    },
-    webPresenceValidation: {
-      companyFound: parsed.webPresenceValidation?.companyFound ?? false,
-      relevantIndustry: parsed.webPresenceValidation?.relevantIndustry ?? false,
-      searchSummary: parsed.webPresenceValidation?.searchSummary || ''
-    },
-    certificationAnalysis: {
-      totalWorkers: parsed.certificationAnalysis?.totalWorkers ?? null,
-      certifiedWorkers: parsed.certificationAnalysis?.certifiedWorkers ?? null,
-      complianceRatio: parsed.certificationAnalysis?.complianceRatio ?? null,
-      meetsRequirement: parsed.certificationAnalysis?.meetsRequirement ?? null
-    },
-    concerns: parsed.concerns || [],
-    policyViolations: parsed.policyViolations || [],
-    recommendation: mapRecommendation(parsed.recommendation),
-    requiredActions: parsed.requiredActions || [],
-    sources: parsed.sources || [{ title: 'Foundry Agent Analysis', uri: '' }],
-    factSheetSummary: factSheet ? 
-      `Matched to ${factSheet.employerLegalName} (ID: ${factSheet.employerId})` : 
-      'No fact sheet match',
-    debug: {
-      prompt: 'Application risk analysis via Foundry Agent1',
-      rawResponse: agentResponse
-    }
-  };
+async function runAgentStep(agentKey: AgentKey, prompt: string): Promise<AgentStepResult> {
+  const startedAt = new Date().toISOString();
+  try {
+    const agentId = getAgentId(agentKey);
+    const response = await askAgent(agentId, prompt, { timeoutMs: 60000 });
+    const parsed = tryParseJson(response.response);
+    const finishedAt = new Date().toISOString();
 
-  return result;
+    return {
+      prompt,
+      raw: response.response,
+      parsed,
+      startedAt,
+      finishedAt,
+      durationMs: response.duration_ms,
+      status: parsed ? 'success' : 'failed',
+      agentId,
+      agentKey
+    };
+  } catch (err: any) {
+    const finishedAt = new Date().toISOString();
+    return {
+      prompt,
+      raw: err?.message || String(err),
+      parsed: null,
+      startedAt,
+      finishedAt,
+      durationMs: null,
+      status: 'failed',
+      agentKey
+    };
+  }
 }
 
 export default { analyzeApplication };
