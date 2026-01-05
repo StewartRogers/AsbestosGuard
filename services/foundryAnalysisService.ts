@@ -240,17 +240,9 @@ async function runAgentStep(agentKey: AgentKey, prompt: string): Promise<AgentSt
       agentKey
     };
   } catch (err: any) {
-    const finishedAt = new Date().toISOString();
-    return {
-      prompt,
-      raw: err?.message || String(err),
-      parsed: null,
-      startedAt,
-      finishedAt,
-      durationMs: null,
-      status: 'failed',
-      agentKey
-    };
+    const error = err instanceof Error ? err : new Error(String(err));
+    error.message = `[foundryAnalysisService] Agent ${agentKey} invocation failed: ${error.message}`;
+    throw error;
   }
 }
 
