@@ -196,7 +196,6 @@ Company: ${companyName}
 Address: ${address}
 
 Full Application Data: ${JSON.stringify(application)}`;
-Address: ${address}`;
 }
 
 function tryParseJson(raw: string): any | null {
