@@ -27,6 +27,8 @@ AsbestosGuard is a licensing and compliance portal for asbestos-related services
    npm run start:dev
    ```
 
+For detailed setup instructions, see [Quick Start Guide](docs/QUICK_START.md).
+
 ## Project Structure
 
 ```
@@ -72,6 +74,11 @@ The application uses Google Gemini AI for three types of analysis:
 1. **Fact Sheet Analyzer** - Compares employer fact sheets to applications
 2. **Risk and Policy Analyst** - Performs risk and policy assessment
 3. **Business Profile Analyst** - Analyzes business profiles and risk factors
+
+## Documentation
+
+- [Quick Start Guide](docs/QUICK_START.md) - Get started in minutes
+- [Gemini API Setup](docs/GEMINI_SETUP.md) - Detailed AI configuration guide
 
 ## License
 
