@@ -1,12 +1,12 @@
 # AsbestosGuard
 
-AsbestosGuard is a licensing and compliance portal for asbestos-related services, built with React, TypeScript, and Azure AI Foundry.
+AsbestosGuard is a licensing and compliance portal for asbestos-related services, built with React, TypeScript, and Gemini AI.
 
 ## Quick Start
 
 ### Prerequisites
 - Node.js 18+
-- Azure AI Foundry project (optional, for AI analysis features)
+- Gemini API key (get from https://makersuite.google.com/app/apikey)
 
 ### Local Development
 
@@ -15,13 +15,11 @@ AsbestosGuard is a licensing and compliance portal for asbestos-related services
    npm install
    ```
 
-2. **Configure environment (optional):**
-   Create `.env.local` with Azure AI Foundry settings:
+2. **Configure environment:**
+   Create `.env.local` with Gemini API settings:
    ```
-   AZURE_AI_FOUNDRY_PROJECT_ENDPOINT=https://your-project.services.ai.azure.com/api/projects/your-project
-   FOUNDRY_AGENT_1_ID=asst_your_agent_1_id
-   FOUNDRY_AGENT_2_ID=asst_your_agent_2_id
-   FOUNDRY_AGENT_3_ID=asst_your_agent_3_id
+   GEMINI_API_KEY=your-gemini-api-key-here
+   GEMINI_MODEL=gemini-pro
    ```
 
 3. **Run the application:**
@@ -29,27 +27,17 @@ AsbestosGuard is a licensing and compliance portal for asbestos-related services
    npm run start:dev
    ```
 
-### Azure Deployment
-
-Deploy to Azure App Service:
-```bash
-./deploy.sh <resource-group> <webapp-name>
-```
-
-For detailed deployment instructions, see [docs/DEPLOY.md](docs/DEPLOY.md).
-
 ## Project Structure
 
 ```
 ├── components/          # React components
 ├── pages/              # Page-level components
-├── services/           # Business logic and API clients
-├── tests/              # Test scripts
-├── scripts/            # Utility scripts
-│   └── diagnostics/   # Diagnostic tools
-├── tools/              # Development tools
+├── services/           # Business logic and AI services
+├── data/               # Local file-based storage
+│   ├── applications/   # Application data
+│   ├── fact-sheets/    # Fact sheet data
+│   └── analysis/       # Analysis results
 └── docs/               # Documentation
-    └── archive/       # Historical documentation
 ```
 
 ## Available Scripts
@@ -57,18 +45,36 @@ For detailed deployment instructions, see [docs/DEPLOY.md](docs/DEPLOY.md).
 - `npm run dev` - Start Vite development server
 - `npm run build` - Build for production
 - `npm run start:dev` - Run full stack in development mode
-- `npm run test:foundry` - Test Azure AI Foundry integration
-- `npm run validate:setup` - Validate configuration
+- `npm run server` - Run server only
+- `npm run start:prod` - Run production build
 
 For all available scripts, see `package.json`.
 
-## Documentation
+## Configuration
 
-- [Deployment Guide](docs/DEPLOY.md)
-- [Azure AI Foundry Setup](docs/FOUNDRY_SETUP.md)
-- [Archived Documentation](docs/archive/) - Implementation notes and historical docs
+All configuration is managed through environment variables in `.env.local`:
+
+- `GEMINI_API_KEY` - Required: Your Gemini API key
+- `GEMINI_MODEL` - Optional: Model to use (default: gemini-pro)
+- `PORT` - Optional: Server port (default: 5000)
+- `NODE_ENV` - Optional: Environment mode (development/production)
+
+## Storage
+
+All data is stored locally in JSON files in the `./data` directory:
+- Applications: `./data/applications/`
+- Fact Sheets: `./data/fact-sheets/`
+- Analysis Results: `./data/analysis/`
+
+## AI Analysis
+
+The application uses Google Gemini AI for three types of analysis:
+1. **Fact Sheet Analyzer** - Compares employer fact sheets to applications
+2. **Risk and Policy Analyst** - Performs risk and policy assessment
+3. **Business Profile Analyst** - Analyzes business profiles and risk factors
 
 ## License
 
 Copyright © 2024 AsbestosGuard. All rights reserved.
+
 

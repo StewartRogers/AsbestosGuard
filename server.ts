@@ -5,8 +5,6 @@ import path from 'path';
 import mammoth from 'mammoth';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
-import * as azureStorage from './services/azureBlobStorageService.js';
-import * as foundryService from './services/foundryService.js';
 
 // ES module __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -19,13 +17,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-// Check if running in Azure (use Azure Storage) or locally (use file system)
-const USE_AZURE_STORAGE = process.env.AZURE_STORAGE_CONNECTION_STRING || 
-                          process.env.AZURE_STORAGE_ACCOUNT_NAME || 
-                          process.env.USE_AZURE_STORAGE === 'true';
-
 console.log(`Environment: ${IS_PRODUCTION ? 'production' : 'development'}`);
-console.log(`Storage mode: ${USE_AZURE_STORAGE ? 'Azure Blob Storage' : 'Local File System'}`);
+console.log(`Storage mode: Local File System`);
 
 // Local storage setup (for development)
 const DATA_DIR = './data';
@@ -45,14 +38,12 @@ if (IS_PRODUCTION) {
   console.log(`Serving static files from: ${distPath}`);
 }
 
-// Ensure data directories exist (only for local development)
-if (!USE_AZURE_STORAGE) {
-  [DATA_DIR, APPLICATIONS_DIR, FACT_SHEETS_DIR, ANALYSIS_DIR].forEach(dir => {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  });
-}
+// Ensure data directories exist
+[DATA_DIR, APPLICATIONS_DIR, FACT_SHEETS_DIR, ANALYSIS_DIR].forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
 
 // Helper function to get file path
 const getFilePath = (filename: string) => path.join(DATA_DIR, `${filename}.json`);
@@ -66,7 +57,8 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     environment: IS_PRODUCTION ? 'production' : 'development',
-    storageMode: USE_AZURE_STORAGE ? 'azure' : 'local',
+    storageMode: 'local',
+    aiProvider: 'gemini',
     uptime: process.uptime()
   };
   res.status(200).json(health);
@@ -109,12 +101,8 @@ app.post('/api/applications', async (req, res) => {
   }
 
   try {
-    if (USE_AZURE_STORAGE) {
-      await azureStorage.saveApplication(filename, data);
-    } else {
-      const filePath = getApplicationPath(filename);
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-    }
+    const filePath = getApplicationPath(filename);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     res.status(201).json({ message: 'Application saved successfully', filename });
   } catch (err) {
     console.error('Error saving application:', err);
@@ -124,24 +112,12 @@ app.post('/api/applications', async (req, res) => {
 
 app.get('/api/applications', async (req, res) => {
   try {
-    if (USE_AZURE_STORAGE) {
-      const blobNames = await azureStorage.listApplications();
-      const applications = await Promise.all(
-        blobNames.map(async (blobName) => {
-          const filename = blobName.replace('.json', '');
-          const data = await azureStorage.loadApplication(filename);
-          return { filename, data };
-        })
-      );
-      res.json(applications);
-    } else {
-      const files = fs.readdirSync(APPLICATIONS_DIR).filter(file => file.endsWith('.json'));
-      const applications = files.map(file => {
-        const content = fs.readFileSync(path.join(APPLICATIONS_DIR, file), 'utf-8');
-        return { filename: file.replace('.json', ''), data: JSON.parse(content) };
-      });
-      res.json(applications);
-    }
+    const files = fs.readdirSync(APPLICATIONS_DIR).filter(file => file.endsWith('.json'));
+    const applications = files.map(file => {
+      const content = fs.readFileSync(path.join(APPLICATIONS_DIR, file), 'utf-8');
+      return { filename: file.replace('.json', ''), data: JSON.parse(content) };
+    });
+    res.json(applications);
   } catch (err) {
     console.error('Error reading applications:', err);
     res.status(500).json({ error: 'Failed to read applications' });
@@ -156,19 +132,11 @@ app.put('/api/applications/:filename', async (req, res) => {
   }
 
   try {
-    if (USE_AZURE_STORAGE) {
-      const exists = await azureStorage.blobExists('applications', `${filename}.json`);
-      if (!exists) {
-        return res.status(404).json({ error: 'Application not found' });
-      }
-      await azureStorage.saveApplication(filename, data);
-    } else {
-      const filePath = getApplicationPath(filename);
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'Application not found' });
-      }
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    const filePath = getApplicationPath(filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Application not found' });
     }
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     res.json({ message: 'Application updated successfully' });
   } catch (err) {
     console.error('Error updating application:', err);
@@ -180,19 +148,11 @@ app.delete('/api/applications/:filename', async (req, res) => {
   const { filename } = req.params;
   
   try {
-    if (USE_AZURE_STORAGE) {
-      const exists = await azureStorage.blobExists('applications', `${filename}.json`);
-      if (!exists) {
-        return res.status(404).json({ error: 'Application not found' });
-      }
-      await azureStorage.deleteApplication(filename);
-    } else {
-      const filePath = getApplicationPath(filename);
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'Application not found' });
-      }
-      fs.unlinkSync(filePath);
+    const filePath = getApplicationPath(filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Application not found' });
     }
+    fs.unlinkSync(filePath);
     res.json({ message: 'Application deleted successfully' });
   } catch (err) {
     console.error('Error deleting application:', err);
@@ -208,12 +168,8 @@ app.post('/api/fact-sheets', async (req, res) => {
   }
 
   try {
-    if (USE_AZURE_STORAGE) {
-      await azureStorage.saveFactSheet(filename, data);
-    } else {
-      const filePath = getFactSheetPath(filename);
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-    }
+    const filePath = getFactSheetPath(filename);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     res.status(201).json({ message: 'Fact sheet saved successfully', filename });
   } catch (err) {
     console.error('Error saving fact sheet:', err);
@@ -223,24 +179,12 @@ app.post('/api/fact-sheets', async (req, res) => {
 
 app.get('/api/fact-sheets', async (req, res) => {
   try {
-    if (USE_AZURE_STORAGE) {
-      const blobNames = await azureStorage.listFactSheets();
-      const factSheets = await Promise.all(
-        blobNames.map(async (blobName) => {
-          const filename = blobName.replace('.json', '');
-          const data = await azureStorage.loadFactSheet(filename);
-          return { filename, data };
-        })
-      );
-      res.json(factSheets);
-    } else {
-      const files = fs.readdirSync(FACT_SHEETS_DIR).filter(file => file.endsWith('.json'));
-      const factSheets = files.map(file => {
-        const content = fs.readFileSync(path.join(FACT_SHEETS_DIR, file), 'utf-8');
-        return { filename: file.replace('.json', ''), data: JSON.parse(content) };
-      });
-      res.json(factSheets);
-    }
+    const files = fs.readdirSync(FACT_SHEETS_DIR).filter(file => file.endsWith('.json'));
+    const factSheets = files.map(file => {
+      const content = fs.readFileSync(path.join(FACT_SHEETS_DIR, file), 'utf-8');
+      return { filename: file.replace('.json', ''), data: JSON.parse(content) };
+    });
+    res.json(factSheets);
   } catch (err) {
     console.error('Error reading fact sheets:', err);
     res.status(500).json({ error: 'Failed to read fact sheets' });
@@ -255,19 +199,11 @@ app.put('/api/fact-sheets/:filename', async (req, res) => {
   }
 
   try {
-    if (USE_AZURE_STORAGE) {
-      const exists = await azureStorage.blobExists('fact-sheets', `${filename}.json`);
-      if (!exists) {
-        return res.status(404).json({ error: 'Fact sheet not found' });
-      }
-      await azureStorage.saveFactSheet(filename, data);
-    } else {
-      const filePath = getFactSheetPath(filename);
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'Fact sheet not found' });
-      }
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    const filePath = getFactSheetPath(filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Fact sheet not found' });
     }
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     res.json({ message: 'Fact sheet updated successfully' });
   } catch (err) {
     console.error('Error updating fact sheet:', err);
@@ -279,19 +215,11 @@ app.delete('/api/fact-sheets/:filename', async (req, res) => {
   const { filename } = req.params;
   
   try {
-    if (USE_AZURE_STORAGE) {
-      const exists = await azureStorage.blobExists('fact-sheets', `${filename}.json`);
-      if (!exists) {
-        return res.status(404).json({ error: 'Fact sheet not found' });
-      }
-      await azureStorage.deleteFactSheet(filename);
-    } else {
-      const filePath = getFactSheetPath(filename);
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'Fact sheet not found' });
-      }
-      fs.unlinkSync(filePath);
+    const filePath = getFactSheetPath(filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Fact sheet not found' });
     }
+    fs.unlinkSync(filePath);
     res.json({ message: 'Fact sheet deleted successfully' });
   } catch (err) {
     console.error('Error deleting fact sheet:', err);
@@ -312,12 +240,8 @@ app.post('/api/analysis', async (req, res) => {
       savedAt: new Date().toISOString()
     };
     
-    if (USE_AZURE_STORAGE) {
-      await azureStorage.saveAnalysis(filename, analysisWithTimestamp);
-    } else {
-      const filePath = getAnalysisPath(filename);
-      fs.writeFileSync(filePath, JSON.stringify(analysisWithTimestamp, null, 2));
-    }
+    const filePath = getAnalysisPath(filename);
+    fs.writeFileSync(filePath, JSON.stringify(analysisWithTimestamp, null, 2));
     res.status(201).json({ message: 'Analysis saved successfully', filename });
   } catch (err) {
     console.error('Error saving analysis:', err);
@@ -330,14 +254,10 @@ app.get('/api/analysis/:filename', async (req, res) => {
   
   try {
     let data = null;
-    if (USE_AZURE_STORAGE) {
-      data = await azureStorage.loadAnalysis(filename);
-    } else {
-      const filePath = getAnalysisPath(filename);
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        data = JSON.parse(content);
-      }
+    const filePath = getAnalysisPath(filename);
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      data = JSON.parse(content);
     }
     res.json(data);
   } catch (err) {
@@ -348,24 +268,12 @@ app.get('/api/analysis/:filename', async (req, res) => {
 
 app.get('/api/analysis', async (req, res) => {
   try {
-    if (USE_AZURE_STORAGE) {
-      const blobNames = await azureStorage.listAnalyses();
-      const analyses = await Promise.all(
-        blobNames.map(async (blobName) => {
-          const filename = blobName.replace('.json', '');
-          const data = await azureStorage.loadAnalysis(filename);
-          return { filename, data };
-        })
-      );
-      res.json(analyses);
-    } else {
-      const files = fs.readdirSync(ANALYSIS_DIR).filter(file => file.endsWith('.json'));
-      const analyses = files.map(file => {
-        const content = fs.readFileSync(path.join(ANALYSIS_DIR, file), 'utf-8');
-        return { filename: file.replace('.json', ''), data: JSON.parse(content) };
-      });
-      res.json(analyses);
-    }
+    const files = fs.readdirSync(ANALYSIS_DIR).filter(file => file.endsWith('.json'));
+    const analyses = files.map(file => {
+      const content = fs.readFileSync(path.join(ANALYSIS_DIR, file), 'utf-8');
+      return { filename: file.replace('.json', ''), data: JSON.parse(content) };
+    });
+    res.json(analyses);
   } catch (err) {
     console.error('Error reading analysis files:', err);
     res.status(500).json({ error: 'Failed to read analyses' });
@@ -376,13 +284,9 @@ app.delete('/api/analysis/:filename', async (req, res) => {
   const { filename } = req.params;
   
   try {
-    if (USE_AZURE_STORAGE) {
-      await azureStorage.deleteAnalysis(filename);
-    } else {
-      const filePath = getAnalysisPath(filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+    const filePath = getAnalysisPath(filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
     }
     res.json({ message: 'Analysis deleted successfully' });
   } catch (err) {
@@ -397,14 +301,10 @@ app.get('/api/data/:key', async (req, res) => {
   
   try {
     let data = null;
-    if (USE_AZURE_STORAGE) {
-      data = await azureStorage.loadData(key);
-    } else {
-      const filePath = getFilePath(key);
-      if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        data = JSON.parse(content);
-      }
+    const filePath = getFilePath(key);
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      data = JSON.parse(content);
     }
     res.json(data);
   } catch (err) {
@@ -418,12 +318,8 @@ app.post('/api/data/:key', async (req, res) => {
   const { data } = req.body;
   
   try {
-    if (USE_AZURE_STORAGE) {
-      await azureStorage.saveData(key, data);
-    } else {
-      const filePath = getFilePath(key);
-      fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-    }
+    const filePath = getFilePath(key);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     res.json({ success: true, message: 'Data saved successfully' });
   } catch (err) {
     console.error(`Error writing data file (${key}):`, err);
@@ -435,13 +331,9 @@ app.delete('/api/data/:key', async (req, res) => {
   const { key } = req.params;
   
   try {
-    if (USE_AZURE_STORAGE) {
-      await azureStorage.deleteData(key);
-    } else {
-      const filePath = getFilePath(key);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
+    const filePath = getFilePath(key);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
     }
     res.json({ success: true, message: 'Data deleted successfully' });
   } catch (err) {
@@ -466,39 +358,40 @@ if (IS_PRODUCTION) {
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Storage: ${USE_AZURE_STORAGE ? 'Azure Blob Storage' : 'Local File System'}`);
+  console.log(`Storage: Local File System`);
+  console.log(`AI Provider: Gemini`);
 });
 
-// AI Analysis endpoint - uses Azure AI Foundry Agents
-const handleFoundryAnalysis = async (req: any, res: any) => {
+// AI Analysis endpoint - uses Gemini API
+const handleGeminiAnalysis = async (req: any, res: any) => {
   try {
     const { application, factSheet } = req.body || {};
     if (!application) {
       return res.status(400).json({ error: 'Request must include { application, factSheet? } in the JSON body.' });
     }
 
-    const foundryEndpoint = process.env.AZURE_AI_FOUNDRY_PROJECT_ENDPOINT;
-    if (!foundryEndpoint) {
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+    if (!geminiApiKey) {
       return res.status(500).json({ 
-        error: 'Azure AI Foundry not configured',
-        hint: 'Set AZURE_AI_FOUNDRY_PROJECT_ENDPOINT in .env.local',
+        error: 'Gemini API not configured',
+        hint: 'Set GEMINI_API_KEY in .env.local',
         details: {
-          missingVar: 'AZURE_AI_FOUNDRY_PROJECT_ENDPOINT',
-          example: 'https://your-project.services.ai.azure.com/api/projects/your-project'
+          missingVar: 'GEMINI_API_KEY',
+          example: 'your-gemini-api-key-here'
         }
       });
     }
 
-    console.log('[server] ✅ Azure AI Foundry configured');
-    console.log('[server] 📤 Starting analysis with Foundry Agents');
+    console.log('[server] ✅ Gemini API configured');
+    console.log('[server] 📤 Starting analysis with Gemini AI');
     
     try {
-      const mod = await import('./services/foundryAnalysisService.js');
+      const mod = await import('./services/geminiAnalysisService.js');
       const analyzeApplication = (mod as any)?.analyzeApplication ?? (mod as any)?.default?.analyzeApplication;
       
       if (!analyzeApplication) {
-        console.error('[server] ❌ Foundry analysis service not found');
-        return res.status(500).json({ error: 'Foundry analysis service not found' });
+        console.error('[server] ❌ Gemini analysis service not found');
+        return res.status(500).json({ error: 'Gemini analysis service not found' });
       }
       
       console.log('[server] 🔍 Invoking analysis...');
@@ -508,31 +401,10 @@ const handleFoundryAnalysis = async (req: any, res: any) => {
       return res.json(result);
     } catch (innerErr) {
       const errMsg = innerErr instanceof Error ? innerErr.message : String(innerErr);
-      console.error('[server] ❌ Foundry analysis failed:', errMsg);
-      
-      // Check if it's a bridge service issue
-      if (errMsg.includes('bridge service') || errMsg.includes('ECONNREFUSED')) {
-        console.error('[server]');
-        console.error('[server] 🔧 BRIDGE SERVICE NOT RUNNING');
-        console.error('[server]    Start it with: npm run agent-bridge');
-        return res.status(500).json({ 
-          error: 'Foundry bridge service not available',
-          hint: 'Start the bridge service with: npm run agent-bridge',
-          details: errMsg
-        });
-      }
-      
-      // Check if it's an agent not found issue
-      if (errMsg.includes('Agent not found') || errMsg.includes('not found')) {
-        return res.status(500).json({ 
-          error: 'Agent not found',
-          hint: 'Run "npm run discover:agents" to see available agents and update .env.local',
-          details: errMsg
-        });
-      }
+      console.error('[server] ❌ Gemini analysis failed:', errMsg);
       
       return res.status(500).json({ 
-        error: 'Foundry analysis failed',
+        error: 'Gemini analysis failed',
         details: errMsg 
       });
     }
@@ -542,55 +414,8 @@ const handleFoundryAnalysis = async (req: any, res: any) => {
   }
 };
 
-// Primary endpoint - Azure AI Foundry
-app.post('/__api/foundry/analyze', handleFoundryAnalysis);
+// Primary endpoint - Gemini AI
+app.post('/__api/gemini/analyze', handleGeminiAnalysis);
 
-// Legacy endpoint for backward compatibility (redirects to Foundry)
-app.post('/__api/gemini/analyze', handleFoundryAnalysis);
-
-// Foundry Agents chat endpoint: route to one of three agents
-app.post('/__api/foundry/:agentKey/chat', async (req, res) => {
-  try {
-    const { agentKey } = req.params as { agentKey: 'agent1' | 'agent2' | 'agent3' };
-    const { prompt } = req.body || {};
-    
-    if (!prompt) {
-      return res.status(400).json({ error: 'Missing prompt in request body' });
-    }
-    
-    console.log(`[server] 💬 Chat request for ${agentKey}`);
-    
-    try {
-      const result = await foundryService.chatWithAgent(agentKey, prompt);
-      console.log(`[server] ✅ Chat completed for ${agentKey}`);
-      return res.json(result);
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      
-      console.error(`[server] ❌ Chat failed for ${agentKey}:`, errMsg);
-      
-      // Check if it's a bridge service issue
-      if (errMsg.includes('bridge service') || errMsg.includes('ECONNREFUSED')) {
-        return res.status(500).json({ 
-          error: 'Bridge service not available',
-          hint: 'Start with: npm run agent-bridge',
-          details: errMsg
-        });
-      }
-      
-      // Check if it's a configuration issue
-      if (errMsg.includes('missing') || errMsg.includes('not set')) {
-        return res.status(500).json({ 
-          error: 'Agent not configured',
-          hint: 'Check FOUNDRY_AGENT_1_ID, FOUNDRY_AGENT_2_ID, FOUNDRY_AGENT_3_ID in .env.local',
-          details: errMsg
-        });
-      }
-      
-      return res.status(500).json({ error: errMsg });
-    }
-  } catch (err) {
-    console.error('[server] ❌ Chat error:', err);
-    return res.status(500).json({ error: 'Internal server error in chat' });
-  }
-});
+// Legacy endpoint for backward compatibility (redirects to Gemini)
+app.post('/__api/foundry/analyze', handleGeminiAnalysis);
