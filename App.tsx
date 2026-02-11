@@ -217,7 +217,9 @@ export default function App() {
 
   const handleAdminLogin = (username: string, password: string) => {
     // Simple authentication check (in production, this should be server-side)
-    if (username === 'admin' && password === 'admin123') {
+    const expectedUsername = import.meta.env.VITE_ADMIN_USERNAME ?? 'admin';
+    const expectedPassword = import.meta.env.VITE_ADMIN_PASSWORD ?? 'admin123';
+    if (username === expectedUsername && password === expectedPassword) {
       setIsAdminAuthenticated(true);
       handleNavigate('ADMIN_DASHBOARD');
     } else {

@@ -92,7 +92,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
 
           <div className="mt-6 pt-6 border-t border-slate-700">
             <p className="text-xs text-slate-500 text-center">
-              Demo credentials: admin / admin123
+              Demo credentials are set in .env.local
             </p>
           </div>
         </Card>
