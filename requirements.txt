@@ -1,9 +1,0 @@
-# Azure AI Projects SDK (native agent support)
-azure-ai-projects
-azure-identity
-
-# For the bridge service
-fastapi
-uvicorn
-python-dotenv
-requests

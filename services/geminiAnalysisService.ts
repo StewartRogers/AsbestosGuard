@@ -1,8 +1,10 @@
-import { LicenseApplication, AIAnalysisResult, EmployerFactSheet } from "../types";
-import { askAgent } from "./foundryAgentClient.js";
-import { getAgentId } from "./config.js";
+/**
+ * Gemini AI Analysis Service
+ * Replaces Azure Foundry analysis with Gemini API
+ */
 
-type AgentKey = 'agent1' | 'agent2' | 'agent3';
+import { LicenseApplication, AIAnalysisResult, EmployerFactSheet } from "../types";
+import { askGemini } from "./geminiService.js";
 
 interface AgentStepResult {
   prompt: string;
@@ -12,14 +14,13 @@ interface AgentStepResult {
   finishedAt: string;
   durationMs: number | null;
   status: 'success' | 'failed' | 'disabled';
-  agentId?: string;
-  agentKey?: AgentKey;
+  agentRole?: string;
 }
 
 /**
- * Sends application through all three Foundry agents and stitches the results together.
+ * Analyzes application using Gemini AI with three different analysis perspectives
  * - Agent1: Fact sheet vs application comparison
- * - Agent2: Policy/risk assessment
+ * - Agent2: Policy/risk assessment  
  * - Agent3: Business profile & web search risk scan
  */
 export async function analyzeApplication(
@@ -28,9 +29,9 @@ export async function analyzeApplication(
 ): Promise<AIAnalysisResult> {
   try {
     const [fact, policy, web] = await Promise.all([
-      runAgentStep('agent1', buildFactCheckPrompt(application, factSheet)),
-      runAgentStep('agent2', buildPolicyPrompt(application, factSheet)),
-      runAgentStep('agent3', buildWebPrompt(application))
+      runAgentStep('Fact Sheet Analyzer', buildFactCheckPrompt(application, factSheet)),
+      runAgentStep('Risk and Policy Analyst', buildPolicyPrompt(application, factSheet)),
+      runAgentStep('Business Profile Analyst', buildWebPrompt(application))
     ]);
 
     const executedAt = new Date().toISOString();
@@ -135,7 +136,7 @@ export async function analyzeApplication(
 
     return analysisResult;
   } catch (error) {
-    console.error('[foundryAnalysisService] Analysis failed:', error);
+    console.error('[geminiAnalysisService] Analysis failed:', error);
     throw error;
   }
 }
@@ -144,7 +145,7 @@ function buildFactCheckPrompt(application: LicenseApplication, factSheet?: Emplo
   const wizard = application.wizardData || ({} as any);
   const accountNumber = wizard.firmAccountNumber || factSheet?.employerId || 'Unknown';
 
-  return `You are Agent1. Compare the Employer Fact Sheet (EFS) to the asbestos license application and report mismatches.
+  return `You are Agent1: Fact Sheet Analyzer. Compare the Employer Fact Sheet (EFS) to the asbestos license application and report mismatches.
 Return ONLY JSON with this shape:
 {
   "summary": "brief sentence about whether EFS matches the application",
@@ -164,7 +165,7 @@ Employer Fact Sheet: ${JSON.stringify(factSheet || {})}`;
 
 function buildPolicyPrompt(application: LicenseApplication, factSheet?: EmployerFactSheet): string {
   const wizard = application.wizardData || ({} as any);
-  return `You are Agent2. Perform an AI-based risk and policy assessment for this asbestos license application.
+  return `You are Agent2: Risk and Policy Analyst. Perform an AI-based risk and policy assessment for this asbestos license application.
 Return ONLY JSON with fields: riskScore, summary, concerns, policyViolations (array), recommendation, requiredActions (array), certificationAnalysis { totalWorkers, certifiedWorkers, complianceRatio, meetsRequirement }, isTestAccount.
 
 Key rules:
@@ -181,10 +182,10 @@ function buildWebPrompt(application: LicenseApplication): string {
   const companyName = wizard.firmLegalName || application.companyName || 'Unknown Company';
   const address = wizard.firmPhysicalAddress || wizard.firmMailingAddress || 'Address not provided';
 
-  return `You are Agent3. Perform a web search style scan to build a business profile and flag risks for asbestos work.
+  return `You are Agent3: Business Profile Analyst. Perform a business profile assessment to flag risks for asbestos work.
 Return ONLY JSON:
 {
-  "searchSummary": "short summary of what the web search suggests about the company",
+  "searchSummary": "short summary of what you can assess about the company",
   "webPresenceValidation": { "companyFound": boolean, "relevantIndustry": boolean, "searchSummary": "" },
   "geographicValidation": { "addressExistsInBC": boolean, "addressConflicts": [], "verifiedLocation": "" },
   "redFlags": ["serious issues"],
@@ -217,16 +218,15 @@ function tryParseJson(raw: string): any | null {
   try {
     return JSON.parse(jsonStr);
   } catch (err) {
-    console.error('[foundryAnalysisService] JSON parse failed for agent response');
+    console.error('[geminiAnalysisService] JSON parse failed for agent response');
     return null;
   }
 }
 
-async function runAgentStep(agentKey: AgentKey, prompt: string): Promise<AgentStepResult> {
+async function runAgentStep(agentRole: string, prompt: string): Promise<AgentStepResult> {
   const startedAt = new Date().toISOString();
   try {
-    const agentId = getAgentId(agentKey);
-    const response = await askAgent(agentId, prompt, { timeoutMs: 60000 });
+    const response = await askGemini(prompt, { timeoutMs: 60000 });
     const parsed = tryParseJson(response.response);
     const finishedAt = new Date().toISOString();
 
@@ -238,8 +238,7 @@ async function runAgentStep(agentKey: AgentKey, prompt: string): Promise<AgentSt
       finishedAt,
       durationMs: response.duration_ms,
       status: parsed ? 'success' : 'failed',
-      agentId,
-      agentKey
+      agentRole
     };
   } catch (err: any) {
     const finishedAt = new Date().toISOString();
@@ -251,7 +250,7 @@ async function runAgentStep(agentKey: AgentKey, prompt: string): Promise<AgentSt
       finishedAt,
       durationMs: null,
       status: 'failed',
-      agentKey
+      agentRole
     };
   }
 }

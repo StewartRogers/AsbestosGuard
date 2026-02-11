@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { LicenseApplication, ApplicationStatus, LicenseType, Associate, ApplicationWizardData, EmployerFactSheet } from '../../types';
 import { Button, Input, Select, Card, Badge } from '../../components/UI';
 import { ApplicationSummary } from '../../components/ApplicationSummary';
-import { analyzeApplicationServer } from '../../services/foundryClient';
+import { analyzeApplicationServer } from '../../services/geminiClient';
 import { 
   ArrowLeft, ChevronRight, ChevronLeft, Check, AlertCircle, 
   HelpCircle, Phone, Mail, UserPlus, Trash2, Building, Calendar, Hash, Info 
