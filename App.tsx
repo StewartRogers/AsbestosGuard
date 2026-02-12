@@ -12,7 +12,12 @@ import FactSheetList from './pages/Admin/FactSheetList';
 import FactSheetForm from './pages/Admin/FactSheetForm';
 import { ShieldCheck } from 'lucide-react';
 import FactSheetView from './pages/Admin/FactSheetView';
-import { deleteFactSheet, updateFactSheet, createFactSheet, getApplications, createApplication, updateApplication, deleteApplication, getFactSheets } from './services/apiService';
+import {
+  deleteFactSheet, updateFactSheet, createFactSheet,
+  getApplications, createApplication, updateApplication, deleteApplication,
+  getFactSheets,
+  loginAdmin, loginEmployer, logout, getCurrentUser
+} from './services/apiService';
 
 // Default mock wizard data to ensure the new Detail view works for existing mock items
 const DEFAULT_MOCK_WIZARD_DATA: ApplicationWizardData = {
@@ -156,32 +161,65 @@ export default function App() {
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
   const [selectedFactSheet, setSelectedFactSheet] = useState<EmployerFactSheet | null>(null);
 
-  // Load applications and fact sheets from server on component mount
+  // Check authentication status on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await getCurrentUser();
+        if (response.user) {
+          if (response.user.role === 'admin') {
+            setIsAdminAuthenticated(true);
+            setCurrentView('ADMIN_DASHBOARD');
+          } else if (response.user.role === 'employer') {
+            setIsEmployerAuthenticated(true);
+            setEmployerEmail(response.user.email || '');
+            setCurrentView('EMPLOYER_DASHBOARD');
+          }
+        }
+      } catch (error) {
+        // Not authenticated, stay on login page
+        console.log('Not authenticated');
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Load applications and fact sheets from server when authenticated
   useEffect(() => {
     const loadData = async () => {
+      if (!isEmployerAuthenticated && !isAdminAuthenticated) {
+        return; // Don't load data if not authenticated
+      }
+
       try {
         setIsLoading(true);
         const appsData = await getApplications();
         const fsData = await getFactSheets();
-        
+
         // Extract data from the API response format
         const appsArray = Array.isArray(appsData) ? appsData.map((item: any) => item.data || item) : [];
         const fsArray = Array.isArray(fsData) ? fsData.map((item: any) => item.data || item) : [];
-        
+
         setApplications(appsArray);
         setFactSheets(fsArray);
       } catch (error) {
         console.error('Failed to load data from server:', error);
-        // Fallback to empty arrays if loading fails
+        // If 401, user needs to log in again
+        if ((error as any)?.response?.status === 401) {
+          setIsEmployerAuthenticated(false);
+          setIsAdminAuthenticated(false);
+          setCurrentView('EMPLOYER_LOGIN');
+        }
         setApplications([]);
         setFactSheets([]);
       } finally {
         setIsLoading(false);
       }
     };
-    
+
     loadData();
-  }, []);
+  }, [isEmployerAuthenticated, isAdminAuthenticated]);
 
   const handleNavigate = (view: ViewState) => {
     // Protect admin routes
@@ -198,38 +236,50 @@ export default function App() {
     window.scrollTo(0, 0);
   };
 
-  const handleEmployerLogin = (email: string, password: string) => {
-    // Demo: accept any email/password combination
-    if (email && password) {
+  const handleEmployerLogin = async (email: string, password: string) => {
+    try {
+      const response = await loginEmployer(email, password);
       setIsEmployerAuthenticated(true);
-      setEmployerEmail(email);
+      setEmployerEmail(response.user.email);
       handleNavigate('EMPLOYER_DASHBOARD');
-    } else {
-      alert('Please enter both email and password.');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error?.message || 'Login failed. Please check your credentials.';
+      alert(errorMessage);
     }
   };
 
-  const handleEmployerLogout = () => {
-    setIsEmployerAuthenticated(false);
-    setEmployerEmail('');
-    handleNavigate('EMPLOYER_LOGIN');
+  const handleEmployerLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setIsEmployerAuthenticated(false);
+      setEmployerEmail('');
+      handleNavigate('EMPLOYER_LOGIN');
+    }
   };
 
-  const handleAdminLogin = (username: string, password: string) => {
-    // Simple authentication check (in production, this should be server-side)
-    const expectedUsername = import.meta.env.VITE_ADMIN_USERNAME ?? 'admin';
-    const expectedPassword = import.meta.env.VITE_ADMIN_PASSWORD ?? 'admin123';
-    if (username === expectedUsername && password === expectedPassword) {
+  const handleAdminLogin = async (username: string, password: string) => {
+    try {
+      const response = await loginAdmin(username, password);
       setIsAdminAuthenticated(true);
       handleNavigate('ADMIN_DASHBOARD');
-    } else {
-      alert('Invalid credentials. Please try again.');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error?.message || 'Invalid credentials. Please try again.';
+      alert(errorMessage);
     }
   };
 
-  const handleAdminLogout = () => {
-    setIsAdminAuthenticated(false);
-    handleNavigate('EMPLOYER_LOGIN');
+  const handleAdminLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setIsAdminAuthenticated(false);
+      handleNavigate('EMPLOYER_LOGIN');
+    }
   };
 
   const handleCreateApplication = (app: LicenseApplication) => {

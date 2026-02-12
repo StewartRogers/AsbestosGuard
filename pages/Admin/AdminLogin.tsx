@@ -3,7 +3,7 @@ import { Card } from '../../components/UI';
 import { ShieldCheck, Lock, User } from 'lucide-react';
 
 interface AdminLoginProps {
-  onLogin: (username: string, password: string) => void;
+  onLogin: (username: string, password: string) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -11,17 +11,26 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (!username || !password) {
       setError('Please enter both username and password');
       return;
     }
 
-    onLogin(username, password);
+    setIsLoading(true);
+    try {
+      await onLogin(username, password);
+    } catch (err: any) {
+      // Error is already handled in App.tsx, but we catch here to stop loading
+      setError(err.response?.data?.error?.message || 'Login failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -46,7 +55,8 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                disabled={isLoading}
+                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50"
                 placeholder="Enter your username"
                 autoComplete="username"
               />
@@ -61,7 +71,8 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                disabled={isLoading}
+                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50"
                 placeholder="Enter your password"
                 autoComplete="current-password"
               />
@@ -74,16 +85,18 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
             )}
 
             <div className="flex gap-3">
-              <button 
-                type="submit" 
-                className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Sign In
+                {isLoading ? 'Signing in...' : 'Sign In'}
               </button>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={onCancel}
-                className="flex-1 bg-slate-700 text-white px-4 py-3 rounded-lg font-medium hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 transition-colors"
+                disabled={isLoading}
+                className="flex-1 bg-slate-700 text-white px-4 py-3 rounded-lg font-medium hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -92,7 +105,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
 
           <div className="mt-6 pt-6 border-t border-slate-700">
             <p className="text-xs text-slate-500 text-center">
-              Demo credentials are set in .env.local
+              Secure server-side authentication enabled
             </p>
           </div>
         </Card>

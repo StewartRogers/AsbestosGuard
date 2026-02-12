@@ -5,6 +5,19 @@ import path from 'path';
 import mammoth from 'mammoth';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
+import { body, param, validationResult } from 'express-validator';
+
+// Import authentication and error handling middleware
+import { requireAuth, requireAdmin } from './middleware/auth.js';
+import { errorHandler, asyncHandler } from './middleware/errorHandler.js';
+import { sanitizeFilename } from './utils/validators.js';
+import { ValidationError, NotFoundError } from './utils/errors.js';
+
+// Import routes
+import authRoutes from './routes/auth.js';
 
 // ES module __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -26,8 +39,69 @@ const APPLICATIONS_DIR = path.join(DATA_DIR, 'applications');
 const FACT_SHEETS_DIR = path.join(DATA_DIR, 'fact-sheets');
 const ANALYSIS_DIR = path.join(DATA_DIR, 'analysis');
 
-app.use(cors());
-app.use(express.json());
+// ============================================================================
+// SECURITY MIDDLEWARE
+// ============================================================================
+
+// Security headers with helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// CORS configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+  'http://localhost:3000',
+  'http://localhost:5173'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// Rate limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per window
+  message: 'Too many requests from this IP, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 login attempts per window
+  message: 'Too many login attempts, please try again later',
+  skipSuccessfulRequests: true,
+});
+
+// Apply rate limiting
+app.use('/api/', apiLimiter);
+app.use('/api/auth/login', authLimiter);
+
+// Body parser and cookie parser
+app.use(express.json({ limit: '10mb' }));
+app.use(cookieParser());
 
 // Serve static files in production
 if (IS_PRODUCTION) {
@@ -45,11 +119,32 @@ if (IS_PRODUCTION) {
   }
 });
 
-// Helper function to get file path
-const getFilePath = (filename: string) => path.join(DATA_DIR, `${filename}.json`);
-const getApplicationPath = (filename: string) => path.join(APPLICATIONS_DIR, `${filename}.json`);
-const getFactSheetPath = (filename: string) => path.join(FACT_SHEETS_DIR, `${filename}.json`);
-const getAnalysisPath = (filename: string) => path.join(ANALYSIS_DIR, `${filename}.json`);
+// Helper functions to get file paths with sanitization
+const getFilePath = (filename: string) => {
+  const clean = sanitizeFilename(filename);
+  return path.join(DATA_DIR, `${clean}.json`);
+};
+
+const getApplicationPath = (filename: string) => {
+  const clean = sanitizeFilename(filename);
+  return path.join(APPLICATIONS_DIR, `${clean}.json`);
+};
+
+const getFactSheetPath = (filename: string) => {
+  const clean = sanitizeFilename(filename);
+  return path.join(FACT_SHEETS_DIR, `${clean}.json`);
+};
+
+const getAnalysisPath = (filename: string) => {
+  const clean = sanitizeFilename(filename);
+  return path.join(ANALYSIS_DIR, `${clean}.json`);
+};
+
+// ============================================================================
+// AUTHENTICATION ROUTES
+// ============================================================================
+
+app.use('/api/auth', authRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -93,207 +188,256 @@ app.get('/api/policies', async (req, res) => {
   }
 });
 
-// Applications Endpoints
-app.post('/api/applications', async (req, res) => {
-  const { filename, data } = req.body;
-  if (!filename || !data) {
-    return res.status(400).json({ error: 'Filename and data are required' });
-  }
+// ============================================================================
+// APPLICATIONS ENDPOINTS (Protected - Requires Authentication)
+// ============================================================================
 
-  try {
-    const filePath = getApplicationPath(filename);
+app.post('/api/applications',
+  requireAuth,
+  [
+    body('filename').isString().trim().notEmpty().withMessage('Filename is required'),
+    body('data').isObject().withMessage('Data must be an object'),
+  ],
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new ValidationError('Validation failed', errors.array());
+    }
+
+    const { filename, data } = req.body;
+    const filePath = getApplicationPath(filename); // sanitization happens inside
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     res.status(201).json({ message: 'Application saved successfully', filename });
-  } catch (err) {
-    console.error('Error saving application:', err);
-    res.status(500).json({ error: 'Failed to save application' });
-  }
-});
+  })
+);
 
-app.get('/api/applications', async (req, res) => {
-  try {
+app.get('/api/applications',
+  requireAuth,
+  asyncHandler(async (req, res) => {
     const files = fs.readdirSync(APPLICATIONS_DIR).filter(file => file.endsWith('.json'));
     const applications = files.map(file => {
       const content = fs.readFileSync(path.join(APPLICATIONS_DIR, file), 'utf-8');
       return { filename: file.replace('.json', ''), data: JSON.parse(content) };
     });
     res.json(applications);
-  } catch (err) {
-    console.error('Error reading applications:', err);
-    res.status(500).json({ error: 'Failed to read applications' });
-  }
-});
+  })
+);
 
-app.put('/api/applications/:filename', async (req, res) => {
-  const { filename } = req.params;
-  const { data } = req.body;
-  if (!data) {
-    return res.status(400).json({ error: 'Data is required' });
-  }
-
-  try {
-    const filePath = getApplicationPath(filename);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Application not found' });
+app.put('/api/applications/:filename',
+  requireAuth,
+  [
+    param('filename').isString().trim().notEmpty(),
+    body('data').isObject().withMessage('Data must be an object'),
+  ],
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new ValidationError('Validation failed', errors.array());
     }
+
+    const { filename } = req.params;
+    const { data } = req.body;
+    const filePath = getApplicationPath(filename);
+
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundError('Application');
+    }
+
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     res.json({ message: 'Application updated successfully' });
-  } catch (err) {
-    console.error('Error updating application:', err);
-    res.status(500).json({ error: 'Failed to update application' });
-  }
-});
+  })
+);
 
-app.delete('/api/applications/:filename', async (req, res) => {
-  const { filename } = req.params;
-  
-  try {
-    const filePath = getApplicationPath(filename);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Application not found' });
+app.delete('/api/applications/:filename',
+  requireAuth,
+  [param('filename').isString().trim().notEmpty()],
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new ValidationError('Validation failed', errors.array());
     }
+
+    const { filename } = req.params;
+    const filePath = getApplicationPath(filename);
+
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundError('Application');
+    }
+
     fs.unlinkSync(filePath);
     res.json({ message: 'Application deleted successfully' });
-  } catch (err) {
-    console.error('Error deleting application:', err);
-    res.status(500).json({ error: 'Failed to delete application' });
-  }
-});
+  })
+);
 
-// Fact Sheets Endpoints
-app.post('/api/fact-sheets', async (req, res) => {
-  const { filename, data } = req.body;
-  if (!filename || !data) {
-    return res.status(400).json({ error: 'Filename and data are required' });
-  }
+// ============================================================================
+// FACT SHEETS ENDPOINTS (Admin Only)
+// ============================================================================
 
-  try {
+app.post('/api/fact-sheets',
+  requireAuth,
+  requireAdmin,
+  [
+    body('filename').isString().trim().notEmpty(),
+    body('data').isObject(),
+  ],
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new ValidationError('Validation failed', errors.array());
+    }
+
+    const { filename, data } = req.body;
     const filePath = getFactSheetPath(filename);
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     res.status(201).json({ message: 'Fact sheet saved successfully', filename });
-  } catch (err) {
-    console.error('Error saving fact sheet:', err);
-    res.status(500).json({ error: 'Failed to save fact sheet' });
-  }
-});
+  })
+);
 
-app.get('/api/fact-sheets', async (req, res) => {
-  try {
+app.get('/api/fact-sheets',
+  requireAuth,
+  asyncHandler(async (req, res) => {
     const files = fs.readdirSync(FACT_SHEETS_DIR).filter(file => file.endsWith('.json'));
     const factSheets = files.map(file => {
       const content = fs.readFileSync(path.join(FACT_SHEETS_DIR, file), 'utf-8');
       return { filename: file.replace('.json', ''), data: JSON.parse(content) };
     });
     res.json(factSheets);
-  } catch (err) {
-    console.error('Error reading fact sheets:', err);
-    res.status(500).json({ error: 'Failed to read fact sheets' });
-  }
-});
+  })
+);
 
-app.put('/api/fact-sheets/:filename', async (req, res) => {
-  const { filename } = req.params;
-  const { data } = req.body;
-  if (!data) {
-    return res.status(400).json({ error: 'Data is required' });
-  }
-
-  try {
-    const filePath = getFactSheetPath(filename);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Fact sheet not found' });
+app.put('/api/fact-sheets/:filename',
+  requireAuth,
+  requireAdmin,
+  [
+    param('filename').isString().trim().notEmpty(),
+    body('data').isObject(),
+  ],
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new ValidationError('Validation failed', errors.array());
     }
+
+    const { filename } = req.params;
+    const { data } = req.body;
+    const filePath = getFactSheetPath(filename);
+
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundError('Fact sheet');
+    }
+
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     res.json({ message: 'Fact sheet updated successfully' });
-  } catch (err) {
-    console.error('Error updating fact sheet:', err);
-    res.status(500).json({ error: 'Failed to update fact sheet' });
-  }
-});
+  })
+);
 
-app.delete('/api/fact-sheets/:filename', async (req, res) => {
-  const { filename } = req.params;
-  
-  try {
-    const filePath = getFactSheetPath(filename);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Fact sheet not found' });
+app.delete('/api/fact-sheets/:filename',
+  requireAuth,
+  requireAdmin,
+  [param('filename').isString().trim().notEmpty()],
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new ValidationError('Validation failed', errors.array());
     }
+
+    const { filename } = req.params;
+    const filePath = getFactSheetPath(filename);
+
+    if (!fs.existsSync(filePath)) {
+      throw new NotFoundError('Fact sheet');
+    }
+
     fs.unlinkSync(filePath);
     res.json({ message: 'Fact sheet deleted successfully' });
-  } catch (err) {
-    console.error('Error deleting fact sheet:', err);
-    res.status(500).json({ error: 'Failed to delete fact sheet' });
-  }
-});
+  })
+);
 
-// AI Analysis Endpoints - Store analysis results and prompts
-app.post('/api/analysis', async (req, res) => {
-  const { filename, data } = req.body;
-  if (!filename || !data) {
-    return res.status(400).json({ error: 'Filename and data are required' });
-  }
+// ============================================================================
+// AI ANALYSIS ENDPOINTS (Admin Only)
+// ============================================================================
 
-  try {
+app.post('/api/analysis',
+  requireAuth,
+  requireAdmin,
+  [
+    body('filename').isString().trim().notEmpty(),
+    body('data').isObject(),
+  ],
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new ValidationError('Validation failed', errors.array());
+    }
+
+    const { filename, data } = req.body;
     const analysisWithTimestamp = {
       ...data,
       savedAt: new Date().toISOString()
     };
-    
+
     const filePath = getAnalysisPath(filename);
     fs.writeFileSync(filePath, JSON.stringify(analysisWithTimestamp, null, 2));
     res.status(201).json({ message: 'Analysis saved successfully', filename });
-  } catch (err) {
-    console.error('Error saving analysis:', err);
-    res.status(500).json({ error: 'Failed to save analysis' });
-  }
-});
+  })
+);
 
-app.get('/api/analysis/:filename', async (req, res) => {
-  const { filename } = req.params;
-  
-  try {
-    let data = null;
+app.get('/api/analysis/:filename',
+  requireAuth,
+  requireAdmin,
+  [param('filename').isString().trim().notEmpty()],
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new ValidationError('Validation failed', errors.array());
+    }
+
+    const { filename } = req.params;
     const filePath = getAnalysisPath(filename);
+
+    let data = null;
     if (fs.existsSync(filePath)) {
       const content = fs.readFileSync(filePath, 'utf-8');
       data = JSON.parse(content);
     }
-    res.json(data);
-  } catch (err) {
-    console.error(`Error reading analysis file (${filename}):`, err);
-    res.status(500).json({ error: 'Failed to read analysis' });
-  }
-});
 
-app.get('/api/analysis', async (req, res) => {
-  try {
+    res.json(data);
+  })
+);
+
+app.get('/api/analysis',
+  requireAuth,
+  requireAdmin,
+  asyncHandler(async (req, res) => {
     const files = fs.readdirSync(ANALYSIS_DIR).filter(file => file.endsWith('.json'));
     const analyses = files.map(file => {
       const content = fs.readFileSync(path.join(ANALYSIS_DIR, file), 'utf-8');
       return { filename: file.replace('.json', ''), data: JSON.parse(content) };
     });
     res.json(analyses);
-  } catch (err) {
-    console.error('Error reading analysis files:', err);
-    res.status(500).json({ error: 'Failed to read analyses' });
-  }
-});
+  })
+);
 
-app.delete('/api/analysis/:filename', async (req, res) => {
-  const { filename } = req.params;
-  
-  try {
+app.delete('/api/analysis/:filename',
+  requireAuth,
+  requireAdmin,
+  [param('filename').isString().trim().notEmpty()],
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new ValidationError('Validation failed', errors.array());
+    }
+
+    const { filename } = req.params;
     const filePath = getAnalysisPath(filename);
+
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
+
     res.json({ message: 'Analysis deleted successfully' });
-  } catch (err) {
-    console.error(`Error deleting analysis file (${filename}):`, err);
-    res.status(500).json({ error: 'Failed to delete analysis' });
-  }
-});
+  })
+);
 
 // Data Storage Endpoints (for JSON persistence via API)
 app.get('/api/data/:key', async (req, res) => {
@@ -414,8 +558,18 @@ const handleGeminiAnalysis = async (req: any, res: any) => {
   }
 };
 
+// ============================================================================
+// GEMINI AI ANALYSIS ENDPOINT (Admin Only)
+// ============================================================================
+
 // Primary endpoint - Gemini AI
-app.post('/__api/gemini/analyze', handleGeminiAnalysis);
+app.post('/__api/gemini/analyze', requireAuth, requireAdmin, handleGeminiAnalysis);
 
 // Legacy endpoint for backward compatibility (redirects to Gemini)
-app.post('/__api/foundry/analyze', handleGeminiAnalysis);
+app.post('/__api/foundry/analyze', requireAuth, requireAdmin, handleGeminiAnalysis);
+
+// ============================================================================
+// ERROR HANDLER (Must be last middleware)
+// ============================================================================
+
+app.use(errorHandler);
