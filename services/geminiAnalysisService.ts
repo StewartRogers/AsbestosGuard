@@ -5,6 +5,7 @@
 
 import { LicenseApplication, AIAnalysisResult, EmployerFactSheet } from "../types";
 import { askGemini } from "./geminiService.js";
+import logger from '../utils/logger.js';
 
 interface AgentStepResult {
   prompt: string;
@@ -136,7 +137,7 @@ export async function analyzeApplication(
 
     return analysisResult;
   } catch (error) {
-    console.error('[geminiAnalysisService] Analysis failed:', error);
+    logger.error('Gemini analysis service failed', { error: error instanceof Error ? error.message : String(error) });
     throw error;
   }
 }
@@ -218,7 +219,7 @@ function tryParseJson(raw: string): any | null {
   try {
     return JSON.parse(jsonStr);
   } catch (err) {
-    console.error('[geminiAnalysisService] JSON parse failed for agent response');
+    logger.warn('JSON parse failed for Gemini agent response');
     return null;
   }
 }

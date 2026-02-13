@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import logger from '../utils/logger.js';
 
 // Use a project-relative directory so we don't attempt to write to the filesystem root
 const DATA_DIR = typeof window === 'undefined'
@@ -25,7 +26,7 @@ export const readFromFile = async (filename: string): Promise<any> => {
     const data = await fs.promises.readFile(filePath, 'utf-8');
     return JSON.parse(data);
   } catch (error) {
-    console.error(`Error reading file ${filename}:`, error);
+    logger.error('Error reading file', { filename, error: error instanceof Error ? error.message : String(error) });
     throw error;
   }
 };
@@ -42,7 +43,7 @@ export const writeToFile = async (filename: string, data: any): Promise<void> =>
     const jsonData = JSON.stringify(data, null, 2);
     await fs.promises.writeFile(filePath, jsonData, 'utf-8');
   } catch (error) {
-    console.error(`Error writing file ${filename}:`, error);
+    logger.error('Error writing file', { filename, error: error instanceof Error ? error.message : String(error) });
     throw error;
   }
 };

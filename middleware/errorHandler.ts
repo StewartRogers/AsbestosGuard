@@ -5,6 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/errors.js';
+import logger from '../utils/logger.js';
 
 /**
  * Error handler middleware
@@ -16,14 +17,20 @@ export function errorHandler(
   res: Response,
   next: NextFunction
 ): void {
-  // Log error for debugging
-  console.error('Error:', {
+  // Log error with structured metadata
+  const errorMeta = {
     name: err.name,
-    message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
     path: req.path,
     method: req.method,
-  });
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+  };
+
+  if (err instanceof AppError && err.statusCode < 500) {
+    logger.warn(err.message, errorMeta);
+  } else {
+    logger.error(err.message, { ...errorMeta, stack: err.stack });
+  }
 
   // Handle known AppError instances
   if (err instanceof AppError) {
