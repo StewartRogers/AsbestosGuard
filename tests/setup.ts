@@ -9,14 +9,14 @@ afterEach(() => {
 });
 
 // Mock environment variables for tests
-process.env.JWT_SECRET = 'test-jwt-secret-for-testing-only';
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-for-testing-only';
 process.env.JWT_EXPIRES_IN = '1h';
 process.env.REFRESH_TOKEN_EXPIRES_IN = '7d';
-process.env.ADMIN_USERNAME = 'admin';
-// Bcrypt hash for password 'admin123'
-process.env.ADMIN_PASSWORD_HASH = '$2b$10$5Z02NRPTwYGoXxLDpqrxLuxsCeXdPyvCZdA9TWiT4ZAIljhRy6cH2';
-process.env.ALLOWED_ORIGINS = 'http://localhost:3000,http://localhost:5173';
-process.env.GEMINI_API_KEY = 'test-gemini-api-key';
+process.env.ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+// Bcrypt hash for password 'admin123' - Override with .env.local if needed
+process.env.ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '$2b$10$5Z02NRPTwYGoXxLDpqrxLuxsCeXdPyvCZdA9TWiT4ZAIljhRy6cH2';
+process.env.ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173';
+process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'test-gemini-api-key';
 process.env.NODE_ENV = 'test';
 
 // Mock window.matchMedia (for components that use media queries)

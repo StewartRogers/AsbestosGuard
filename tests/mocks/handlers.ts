@@ -16,7 +16,11 @@ export const authHandlers = [
     const body = await request.json() as any;
     const { username, password } = body;
 
-    if (username === 'admin' && password === 'admin123') {
+    // Use environment variables for test credentials
+    const testAdminUsername = process.env.ADMIN_USERNAME || 'admin';
+    const testAdminPassword = process.env.TEST_ADMIN_PASSWORD || 'admin123';
+
+    if (username === testAdminUsername && password === testAdminPassword) {
       return HttpResponse.json({
         user: mockAdminUser,
         message: 'Login successful',
@@ -39,7 +43,11 @@ export const authHandlers = [
     const body = await request.json() as any;
     const { email, password } = body;
 
-    if (email === 'test@example.com' && password === 'password123') {
+    // Use environment variables for test credentials
+    const testEmployerEmail = process.env.TEST_EMPLOYER_EMAIL || 'test@example.com';
+    const testEmployerPassword = process.env.TEST_EMPLOYER_PASSWORD || 'password123';
+
+    if (email === testEmployerEmail && password === testEmployerPassword) {
       return HttpResponse.json({
         user: mockEmployerUser,
         message: 'Login successful',
