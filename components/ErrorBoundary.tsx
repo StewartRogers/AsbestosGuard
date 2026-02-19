@@ -1,16 +1,47 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
+/** Props accepted by {@link ErrorBoundary}. */
 interface ErrorBoundaryProps {
+  /** The subtree to protect. */
   children: ReactNode;
+  /**
+   * Optional custom fallback UI to render instead of the default error card.
+   * Receives no props — use a closure if you need access to the error.
+   */
   fallback?: ReactNode;
 }
 
+/** Internal state tracked by {@link ErrorBoundary}. */
 interface ErrorBoundaryState {
+  /** Whether an unhandled render error has been caught. */
   hasError: boolean;
+  /** The caught error object, or null when no error has occurred. */
   error: Error | null;
 }
 
+/**
+ * React class-based error boundary that catches unhandled errors thrown during
+ * rendering, in lifecycle methods, or in constructors of any child component.
+ *
+ * When an error is caught the boundary renders a user-friendly error card with
+ * "Try Again" and "Reload Page" actions. Full error details (message + stack)
+ * are shown in development via a collapsible `<details>` element.
+ *
+ * Wrap the application root (or individual high-risk subtrees) with this component:
+ * ```tsx
+ * <ErrorBoundary>
+ *   <App />
+ * </ErrorBoundary>
+ * ```
+ *
+ * A custom fallback can be supplied for finer-grained control:
+ * ```tsx
+ * <ErrorBoundary fallback={<p>Something went wrong in this section.</p>}>
+ *   <RiskyWidget />
+ * </ErrorBoundary>
+ * ```
+ */
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);

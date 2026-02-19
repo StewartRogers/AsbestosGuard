@@ -1,6 +1,17 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 
+/**
+ * Primary action button with built-in loading state.
+ *
+ * @param variant - Visual style: `primary` (brand blue), `secondary` (slate),
+ *   `danger` (red), or `outline` (transparent with border). Defaults to `primary`.
+ * @param isLoading - When true, renders a spinning icon and disables the button.
+ *
+ * @example
+ * <Button onClick={save} isLoading={isSaving}>Save</Button>
+ * <Button variant="danger" onClick={remove}>Delete</Button>
+ */
 export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'outline', isLoading?: boolean }> = ({ 
   className = '', 
   variant = 'primary', 
@@ -29,6 +40,13 @@ export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { 
   );
 };
 
+/**
+ * Labelled text input with optional inline error message.
+ *
+ * @param label - Visible label rendered above the input.
+ * @param error - If provided, renders a red error message below the input
+ *   and applies a red border to draw attention.
+ */
 export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label: string, error?: string }> = ({ label, error, className = '', ...props }) => (
   <div className="mb-4">
     <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
@@ -40,6 +58,12 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
   </div>
 );
 
+/**
+ * Labelled dropdown select built from a typed options array.
+ *
+ * @param label - Visible label rendered above the select.
+ * @param options - Array of `{ value, label }` pairs to render as `<option>` elements.
+ */
 export const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label: string, options: {value: string, label: string}[] }> = ({ label, options, className = '', ...props }) => (
   <div className="mb-4">
     <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
@@ -54,6 +78,13 @@ export const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { 
   </div>
 );
 
+/**
+ * Bordered card container with an optional header row.
+ *
+ * @param title - If provided, renders a bold heading in the card header.
+ * @param action - Optional React node (e.g. a button) placed on the right side
+ *   of the header row alongside `title`.
+ */
 export const Card: React.FC<React.HTMLAttributes<HTMLDivElement> & { title?: string, action?: React.ReactNode }> = ({ children, className = '', title, action, ...props }) => (
   <div className={`bg-white rounded-lg border border-slate-200 shadow-sm ${className}`} {...props}>
     {(title || action) && (
@@ -68,6 +99,12 @@ export const Card: React.FC<React.HTMLAttributes<HTMLDivElement> & { title?: str
   </div>
 );
 
+/**
+ * Small inline status pill.
+ *
+ * @param color - Colour scheme: `green` (success), `yellow` (warning),
+ *   `red` (danger), `blue` (info), `gray` (neutral). Defaults to `gray`.
+ */
 export const Badge: React.FC<{ children: React.ReactNode, color?: 'green' | 'yellow' | 'red' | 'blue' | 'gray' }> = ({ children, color = 'gray' }) => {
   const colors = {
     green: 'bg-green-100 text-green-800',

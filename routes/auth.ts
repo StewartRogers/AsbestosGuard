@@ -1,12 +1,108 @@
 /**
  * Authentication Routes
  * Handles login, logout, and authentication status
+ *
+ * @openapi
+ * /auth/login/admin:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Admin login
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [username, password]
+ *             properties:
+ *               username: { type: string }
+ *               password: { type: string, format: password }
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user: { $ref: '#/components/schemas/User' }
+ *                 message: { type: string }
+ *       401:
+ *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/Error' }
+ *
+ * /auth/login/employer:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Employer login
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email: { type: string, format: email }
+ *               password: { type: string, format: password }
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user: { $ref: '#/components/schemas/User' }
+ *                 message: { type: string }
+ *       401:
+ *         description: Invalid credentials
+ *
+ * /auth/logout:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Logout and clear cookies
+ *     responses:
+ *       200:
+ *         description: Logout successful
+ *
+ * /auth/me:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Get current authenticated user
+ *     security:
+ *       - cookieAuth: []
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current user info
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user: { $ref: '#/components/schemas/User' }
+ *       401:
+ *         description: Not authenticated
+ *
+ * /auth/refresh:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Refresh access token using refresh token cookie
+ *     responses:
+ *       200:
+ *         description: Token refreshed
+ *       401:
+ *         description: No or invalid refresh token
  */
 
 import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { comparePassword } from '../utils/passwordHash.js';
 import { generateToken, generateRefreshToken, requireAuth } from '../middleware/auth.js';
+import { logAuditEvent } from '../middleware/auditLog.js';
 import { AuthenticationError, ValidationError } from '../utils/errors.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 
@@ -41,12 +137,14 @@ router.post(
 
     // Verify username
     if (username !== adminUsername) {
+      logAuditEvent({ action: 'admin_login', outcome: 'failure', ip: req.ip, details: { reason: 'invalid_username' } });
       throw new AuthenticationError('Invalid credentials');
     }
 
     // Verify password
     const isValid = await comparePassword(password, adminPasswordHash);
     if (!isValid) {
+      logAuditEvent({ action: 'admin_login', outcome: 'failure', ip: req.ip, details: { reason: 'invalid_password' } });
       throw new AuthenticationError('Invalid credentials');
     }
 
@@ -74,6 +172,8 @@ router.post(
       sameSite: 'strict',
       maxAge: 7 * 24 * 3600000, // 7 days
     });
+
+    logAuditEvent({ action: 'admin_login', outcome: 'success', userId: 'admin', role: 'admin', ip: req.ip });
 
     // Return user info (without sensitive data)
     res.json({
@@ -138,6 +238,8 @@ router.post(
       sameSite: 'strict',
       maxAge: 7 * 24 * 3600000, // 7 days
     });
+
+    logAuditEvent({ action: 'employer_login', outcome: 'success', userId: email.toLowerCase(), role: 'employer', ip: req.ip });
 
     // Return user info
     res.json({

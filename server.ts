@@ -8,9 +8,12 @@ import { fileURLToPath } from 'url';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
+import swaggerUi from 'swagger-ui-express';
 
 // Import middleware and utilities
 import { errorHandler } from './middleware/errorHandler.js';
+import { auditLog } from './middleware/auditLog.js';
+import { swaggerSpec } from './utils/openapi.js';
 import logger from './utils/logger.js';
 
 // Import routes
@@ -101,12 +104,24 @@ const authLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
+// Strict limiter for expensive AI analysis calls
+const aiLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: 'AI analysis rate limit exceeded, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use('/api/', apiLimiter);
 app.use('/api/auth/login', authLimiter);
+app.use('/__api/gemini', aiLimiter);
+app.use('/__api/foundry', aiLimiter);
 
 // Body parser and cookie parser
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
+app.use(auditLog);
 
 // Serve static files in production
 if (IS_PRODUCTION) {
@@ -158,6 +173,13 @@ app.get('/api/policies', async (req, res) => {
     res.status(500).json({ error: 'Failed to load policies' });
   }
 });
+
+// API documentation (not exposed in production)
+if (!IS_PRODUCTION) {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+  app.get('/api-docs.json', (req, res) => res.json(swaggerSpec));
+  logger.info('API docs available at /api-docs');
+}
 
 // Mount route groups
 app.use('/api/auth', authRoutes);

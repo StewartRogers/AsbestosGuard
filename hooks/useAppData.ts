@@ -5,18 +5,43 @@ import {
   getFactSheets, createFactSheet, updateFactSheet, deleteFactSheet,
 } from '../services/apiService';
 
+/**
+ * Return type for the {@link useAppData} hook.
+ */
 interface UseAppDataReturn {
+  /** All licence applications fetched from the server. */
   applications: LicenseApplication[];
+  /** All employer fact sheets fetched from the server. */
   factSheets: EmployerFactSheet[];
+  /** True while the initial data load is in progress. */
   isLoading: boolean;
+  /** Optimistically prepend a new application and persist it to the server. */
   handleCreateApplication: (app: LicenseApplication) => void;
+  /** Optimistically update an application (stamps `lastUpdated`) and persist it. */
   handleUpdateApplication: (updatedApp: LicenseApplication) => void;
+  /** Create a fact sheet, assign a generated ID, and navigate to the fact sheet list. */
   handleCreateFactSheet: (data: Omit<EmployerFactSheet, 'id'>) => void;
+  /** Persist an updated fact sheet and sync local state. */
   handleUpdateFactSheet: (updated: EmployerFactSheet) => Promise<void>;
+  /** Delete a fact sheet by ID and remove it from local state. */
   handleDeleteFactSheet: (id: string) => Promise<void>;
+  /** Bulk-import applications and fact sheets, persisting each item to the server. */
   handleDataImport: (data: { applications: LicenseApplication[]; factSheets: EmployerFactSheet[] }) => Promise<void>;
 }
 
+/**
+ * Loads and manages applications and fact sheets for the authenticated session.
+ *
+ * Data is fetched from the API whenever `isAuthenticated` transitions to `true`.
+ * A 401 response triggers `onAuthExpired` so the parent can reset auth state.
+ * All write operations update local state optimistically before (or alongside)
+ * the server call, keeping the UI responsive.
+ *
+ * @param isAuthenticated - Whether a valid session currently exists.
+ * @param onNavigate - Callback used to change the active view after mutations.
+ * @param onAuthExpired - Called when the API returns 401, signalling a stale token.
+ * @returns Application and fact sheet state plus CRUD handlers.
+ */
 export function useAppData(
   isAuthenticated: boolean,
   onNavigate: (view: ViewState) => void,

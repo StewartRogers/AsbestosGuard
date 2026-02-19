@@ -1,3 +1,87 @@
+/**
+ * @openapi
+ * /applications:
+ *   get:
+ *     tags: [Applications]
+ *     summary: List all applications
+ *     security:
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Array of applications
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   filename: { type: string }
+ *                   data: { $ref: '#/components/schemas/Application' }
+ *       401:
+ *         description: Unauthorized
+ *   post:
+ *     tags: [Applications]
+ *     summary: Create a new application
+ *     security:
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [filename, data]
+ *             properties:
+ *               filename: { type: string }
+ *               data: { $ref: '#/components/schemas/Application' }
+ *     responses:
+ *       201:
+ *         description: Application created
+ *       401:
+ *         description: Unauthorized
+ *
+ * /applications/{filename}:
+ *   put:
+ *     tags: [Applications]
+ *     summary: Update an application
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: filename
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [data]
+ *             properties:
+ *               data: { $ref: '#/components/schemas/Application' }
+ *     responses:
+ *       200:
+ *         description: Application updated
+ *       404:
+ *         description: Application not found
+ *   delete:
+ *     tags: [Applications]
+ *     summary: Delete an application
+ *     security:
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: filename
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Application deleted
+ *       404:
+ *         description: Application not found
+ */
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';

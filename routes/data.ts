@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
+import { requireAuth } from '../middleware/auth.js';
 import { sanitizeFilename } from '../utils/validators.js';
 import logger from '../utils/logger.js';
 
@@ -14,7 +15,7 @@ const getFilePath = (filename: string) => {
 };
 
 // Read data by key
-router.get('/:key', async (req: Request, res: Response) => {
+router.get('/:key', requireAuth, async (req: Request, res: Response) => {
   const { key } = req.params;
 
   try {
@@ -32,7 +33,7 @@ router.get('/:key', async (req: Request, res: Response) => {
 });
 
 // Write data by key
-router.post('/:key', async (req: Request, res: Response) => {
+router.post('/:key', requireAuth, async (req: Request, res: Response) => {
   const { key } = req.params;
   const { data } = req.body;
 
@@ -47,7 +48,7 @@ router.post('/:key', async (req: Request, res: Response) => {
 });
 
 // Delete data by key
-router.delete('/:key', async (req: Request, res: Response) => {
+router.delete('/:key', requireAuth, async (req: Request, res: Response) => {
   const { key } = req.params;
 
   try {
