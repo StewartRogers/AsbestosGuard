@@ -41,7 +41,8 @@ export async function askGemini(
   const temperature = options?.temperature ?? 0.7;
   const maxTokens = options?.maxTokens ?? 2048;
 
-  const url = `${GEMINI_API_BASE_URL}/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+  // Key is passed via header, not URL query param, to avoid leaking it in logs
+  const url = `${GEMINI_API_BASE_URL}/models/${GEMINI_MODEL}:generateContent`;
 
   try {
     const controller = new AbortController();
@@ -51,6 +52,7 @@ export async function askGemini(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-goog-api-key': GEMINI_API_KEY,
       },
       body: JSON.stringify({
         contents: [{
