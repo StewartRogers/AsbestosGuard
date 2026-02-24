@@ -114,7 +114,9 @@ const aiLimiter = rateLimit({
 });
 
 app.use('/api/', apiLimiter);
-app.use('/api/auth/login', authLimiter);
+// Apply strict auth rate limiter explicitly to each login sub-route
+app.use('/api/auth/login/admin', authLimiter);
+app.use('/api/auth/login/employer', authLimiter);
 app.use('/__api/gemini', aiLimiter);
 app.use('/__api/foundry', aiLimiter);
 

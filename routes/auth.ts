@@ -190,13 +190,13 @@ router.post(
 /**
  * POST /api/auth/login/employer
  * Employer login with email and password
- * Note: Currently accepts any valid email for demo purposes
- * In production, this should verify against a database
+ * Credentials are verified against EMPLOYER_EMAIL and EMPLOYER_PASSWORD_HASH
+ * environment variables. The endpoint is disabled unless both are configured.
  */
 router.post(
   '/login/employer',
   [
-    body('email').isEmail().withMessage('Valid email is required'),
+    body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
     body('password').notEmpty().withMessage('Password is required'),
   ],
   asyncHandler(async (req: Request, res: Response) => {
@@ -208,9 +208,25 @@ router.post(
 
     const { email, password } = req.body;
 
-    // TODO: In production, verify against database
-    // For now, accept any email/password for demo purposes
-    if (!email || !password) {
+    // Require configured credentials — reject logins when env vars are absent
+    const employerEmail = process.env.EMPLOYER_EMAIL;
+    const employerPasswordHash = process.env.EMPLOYER_PASSWORD_HASH;
+
+    if (!employerEmail || !employerPasswordHash) {
+      logAuditEvent({ action: 'employer_login', outcome: 'failure', ip: req.ip, details: { reason: 'employer_auth_not_configured' } });
+      return res.status(503).json({ error: 'Employer authentication is not configured on this server.' });
+    }
+
+    // Verify email matches the configured account
+    if (email.toLowerCase() !== employerEmail.toLowerCase()) {
+      logAuditEvent({ action: 'employer_login', outcome: 'failure', ip: req.ip, details: { reason: 'invalid_email' } });
+      throw new AuthenticationError('Invalid credentials');
+    }
+
+    // Verify password against stored bcrypt hash
+    const isValid = await comparePassword(password, employerPasswordHash);
+    if (!isValid) {
+      logAuditEvent({ action: 'employer_login', outcome: 'failure', ip: req.ip, details: { reason: 'invalid_password' } });
       throw new AuthenticationError('Invalid credentials');
     }
 
@@ -305,7 +321,7 @@ router.post(
 
     // Verify refresh token (using same logic as requireAuth)
     // In production, you might want separate logic for refresh tokens
-    const jwt = await import('jsonwebtoken');
+    const jwt = (await import('jsonwebtoken')).default;
     const secret = process.env.JWT_SECRET;
 
     if (!secret) {
