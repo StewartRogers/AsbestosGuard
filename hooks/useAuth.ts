@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ViewState } from '../types';
 import { loginAdmin, loginEmployer, logout, getCurrentUser } from '../services/apiService';
 
@@ -39,12 +39,18 @@ export function useAuth(onNavigate: (view: ViewState) => void): UseAuthReturn {
   const [isEmployerAuthenticated, setIsEmployerAuthenticated] = useState(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [employerEmail, setEmployerEmail] = useState('');
+  // Ref prevents checkAuth from navigating more than once (handles StrictMode double-invoke,
+  // HMR re-runs, or any other cause of repeated effect execution).
+  const sessionRestored = useRef(false);
 
   // Check authentication status on mount
   useEffect(() => {
+    let cancelled = false;
     const checkAuth = async () => {
       try {
         const response = await getCurrentUser();
+        if (cancelled || sessionRestored.current) return;
+        sessionRestored.current = true;
         if (response.user) {
           if (response.user.role === 'admin') {
             setIsAdminAuthenticated(true);
@@ -60,6 +66,7 @@ export function useAuth(onNavigate: (view: ViewState) => void): UseAuthReturn {
       }
     };
     checkAuth();
+    return () => { cancelled = true; };
   }, []);
 
   const handleEmployerLogin = useCallback(async (email: string, password: string) => {

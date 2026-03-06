@@ -118,7 +118,7 @@ export function requireEmployer(req: Request, res: Response, next: NextFunction)
  * Generate a JWT token for a user
  */
 export function generateToken(payload: JWTPayload): string {
-  const expiresIn = process.env.JWT_EXPIRES_IN || '1h';
+  const expiresIn = (process.env.JWT_EXPIRES_IN || '1h') as any;
   return jwt.sign(payload, getJWTSecret(), { expiresIn });
 }
 
@@ -126,6 +126,6 @@ export function generateToken(payload: JWTPayload): string {
  * Generate a refresh token
  */
 export function generateRefreshToken(payload: JWTPayload): string {
-  const expiresIn = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
+  const expiresIn = (process.env.REFRESH_TOKEN_EXPIRES_IN || '7d') as any;
   return jwt.sign(payload, getJWTSecret(), { expiresIn });
 }

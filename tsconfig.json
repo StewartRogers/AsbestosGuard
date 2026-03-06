@@ -28,5 +28,24 @@
     
     "outDir": "dist-server",
     "noEmit": false
-  }
+  },
+  "include": [
+    "server.ts",
+    "types.ts",
+    "routes/**/*",
+    "services/**/*",
+    "middleware/**/*",
+    "utils/**/*",
+    "hooks/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist-server",
+    "dist",
+    "tests",
+    "components",
+    "pages",
+    "src",
+    "vitest.config.ts"
+  ]
 }

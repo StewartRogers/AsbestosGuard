@@ -21,16 +21,7 @@ export default function App() {
   const [selectedFactSheet, setSelectedFactSheet] = useState<EmployerFactSheet | null>(null);
 
   const handleNavigate = useCallback((view: ViewState) => {
-    // Protect admin routes
-    if (view.startsWith('ADMIN_') && view !== 'ADMIN_LOGIN' && !auth.isAdminAuthenticated) {
-      setCurrentView('ADMIN_LOGIN');
-      return;
-    }
-    // Protect employer routes (except login)
-    if (view.startsWith('EMPLOYER_') && view !== 'EMPLOYER_LOGIN' && !auth.isEmployerAuthenticated) {
-      setCurrentView('EMPLOYER_LOGIN');
-      return;
-    }
+    console.log('[NAV]', view, new Error().stack?.split('\n').slice(1, 4).join(' | '));
     setCurrentView(view);
     window.scrollTo(0, 0);
   }, []);
@@ -107,6 +98,7 @@ export default function App() {
           />
         );
       case 'ADMIN_DASHBOARD':
+        if (!auth.isAdminAuthenticated) return <AdminLogin onLogin={auth.handleAdminLogin} onCancel={() => handleNavigate('EMPLOYER_LOGIN')} />;
         return (
           <AdminDashboard
             applications={data.applications}
@@ -117,6 +109,7 @@ export default function App() {
           />
         );
       case 'ADMIN_REVIEW': {
+        if (!auth.isAdminAuthenticated) return <AdminLogin onLogin={auth.handleAdminLogin} onCancel={() => handleNavigate('EMPLOYER_LOGIN')} />;
         const appToReview = data.applications.find(a => a.id === selectedAppId);
         if (!appToReview) return <div>Application not found</div>;
         return (
@@ -129,6 +122,7 @@ export default function App() {
         );
       }
       case 'ADMIN_FACT_SHEETS':
+        if (!auth.isAdminAuthenticated) return <AdminLogin onLogin={auth.handleAdminLogin} onCancel={() => handleNavigate('EMPLOYER_LOGIN')} />;
         return (
           <FactSheetList
             factSheets={data.factSheets}
@@ -140,6 +134,7 @@ export default function App() {
           />
         );
       case 'ADMIN_FACT_SHEET_NEW':
+        if (!auth.isAdminAuthenticated) return <AdminLogin onLogin={auth.handleAdminLogin} onCancel={() => handleNavigate('EMPLOYER_LOGIN')} />;
         return (
           <FactSheetForm
             onSubmit={data.handleCreateFactSheet}
@@ -147,6 +142,7 @@ export default function App() {
           />
         );
       case 'ADMIN_FACT_SHEET_EDIT':
+        if (!auth.isAdminAuthenticated) return <AdminLogin onLogin={auth.handleAdminLogin} onCancel={() => handleNavigate('EMPLOYER_LOGIN')} />;
         if (!selectedFactSheet) return <div>Fact sheet not found</div>;
         return (
           <FactSheetForm
@@ -164,6 +160,7 @@ export default function App() {
           />
         );
       case 'ADMIN_FACT_SHEET_VIEW':
+        if (!auth.isAdminAuthenticated) return <AdminLogin onLogin={auth.handleAdminLogin} onCancel={() => handleNavigate('EMPLOYER_LOGIN')} />;
         if (!selectedFactSheet) return <div>Fact sheet not found</div>;
         return (
           <FactSheetView
@@ -176,18 +173,29 @@ export default function App() {
     }
   };
 
+  const handleLogoKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      auth.isEmployerAuthenticated ? handleNavigate('EMPLOYER_DASHBOARD') : handleNavigate('EMPLOYER_LOGIN');
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <header className="bg-slate-900 text-white shadow-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div
             className="flex items-center space-x-3 cursor-pointer"
+            role="button"
+            tabIndex={0}
+            aria-label="AsbestosGuard home"
             onClick={() => auth.isEmployerAuthenticated ? handleNavigate('EMPLOYER_DASHBOARD') : handleNavigate('EMPLOYER_LOGIN')}
+            onKeyDown={handleLogoKeyDown}
           >
-            <ShieldCheck className="h-8 w-8 text-brand-500" />
+            <ShieldCheck className="h-8 w-8 text-brand-500" aria-hidden="true" />
             <span className="text-xl font-bold tracking-tight">AsbestosGuard</span>
           </div>
-          <div className="flex items-center space-x-6">
+          <nav aria-label="Site navigation" className="flex items-center space-x-6">
             {auth.isEmployerAuthenticated && (
               <span className="text-sm text-blue-300">{auth.employerEmail}</span>
             )}
@@ -195,17 +203,17 @@ export default function App() {
               <span className="text-sm text-brand-400">Admin Mode</span>
             )}
             <div className="text-sm text-slate-400">
-              Licensing & Compliance Portal
+              Licensing &amp; Compliance Portal
             </div>
             {!auth.isAdminAuthenticated && (
               <button
                 onClick={() => handleNavigate('ADMIN_LOGIN')}
-                className="text-sm text-slate-300 hover:text-white transition-colors font-medium"
+                className="text-sm text-slate-300 hover:text-white transition-colors font-medium focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-slate-900 rounded"
               >
                 Admin Login
               </button>
             )}
-          </div>
+          </nav>
         </div>
       </header>
       <main className="flex-grow">
@@ -219,7 +227,7 @@ export default function App() {
           <div className="border-t border-slate-800 pt-4">
             <button
               onClick={() => handleNavigate('ADMIN_FACT_SHEETS')}
-              className="text-slate-600 hover:text-slate-400 text-xs transition-colors"
+              className="text-slate-400 hover:text-slate-200 text-xs transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 rounded"
             >
               Manage Fact Sheets (Test)
             </button>

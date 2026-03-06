@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { activeModel } from '../services/geminiService.js';
 import logger from '../utils/logger.js';
 
 const router = Router();
@@ -52,6 +53,15 @@ const handleGeminiAnalysis = async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Internal server error in AI analysis.' });
   }
 };
+
+// Status endpoint — returns the active model and whether the API key is set
+router.get('/status', requireAuth, requireAdmin, (_req: Request, res: Response) => {
+  res.json({
+    model: activeModel,
+    apiKeyConfigured: !!process.env.GEMINI_API_KEY,
+    apiBaseUrl: process.env.GEMINI_API_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta',
+  });
+});
 
 // Primary endpoint - Gemini AI
 router.post('/analyze', requireAuth, requireAdmin, handleGeminiAnalysis);
