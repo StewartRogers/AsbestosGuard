@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Card } from '../../components/UI';
 import { ShieldCheck, Lock, User } from 'lucide-react';
 
 interface AdminLoginProps {
@@ -44,10 +43,10 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
           <p className="text-slate-300">AsbestosGuard Licensing System</p>
         </div>
 
-        <Card className="p-8 bg-slate-800 border-slate-700">
+        <div className="p-8 bg-slate-800 border border-slate-700 rounded-lg shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="admin-username" className="block text-sm font-medium text-slate-200 mb-2">
+              <label htmlFor="admin-username" className="block text-sm font-medium text-white mb-2">
                 <User className="inline h-4 w-4 mr-2" aria-hidden="true" />
                 Username
               </label>
@@ -57,14 +56,14 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isLoading}
-                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50"
+                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50"
                 placeholder="Enter your username"
                 autoComplete="username"
               />
             </div>
 
             <div>
-              <label htmlFor="admin-password" className="block text-sm font-medium text-slate-200 mb-2">
+              <label htmlFor="admin-password" className="block text-sm font-medium text-white mb-2">
                 <Lock className="inline h-4 w-4 mr-2" aria-hidden="true" />
                 Password
               </label>
@@ -74,7 +73,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
-                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50"
+                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50"
                 placeholder="Enter your password"
                 autoComplete="current-password"
               />
@@ -110,7 +109,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
               Secure server-side authentication enabled
             </p>
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   );
