@@ -15,6 +15,9 @@ dist-ssr
 dist-server
 *.local
 
+# Runtime data (applications, fact sheets, analysis results)
+data/
+
 # Temporary files and test artifacts
 tmp/
 .trace-storage/
