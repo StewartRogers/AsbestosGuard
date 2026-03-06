@@ -49,14 +49,14 @@ const EmployerDashboard: React.FC<EmployerDashboardProps> = ({ applications, onN
             <Button onClick={onNewClick}>Start Application</Button>
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-slate-200">
+          <table className="min-w-full divide-y divide-slate-200" aria-label="My applications">
             <thead className="bg-slate-50">
                 <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Reference Number</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Last Updated</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Last Edited By</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Reference Number</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Last Updated</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Last Edited By</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
                 </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
@@ -79,10 +79,11 @@ const EmployerDashboard: React.FC<EmployerDashboardProps> = ({ applications, onN
                             <StatusBadge status={app.status} />
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="outline"
                               className="text-xs px-2 py-1 h-auto"
                               onClick={() => onViewClick(app)}
+                              aria-label={`View application ${app.id}`}
                             >
                               View
                             </Button>

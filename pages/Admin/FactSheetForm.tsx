@@ -52,11 +52,12 @@ const FactSheetForm: React.FC<FactSheetFormProps> = ({ onSubmit, onCancel, initi
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-      <button 
+      <button
         onClick={onCancel}
         className="flex items-center text-slate-500 hover:text-slate-900 mb-6"
+        aria-label="Back to List"
       >
-        <ArrowLeft className="w-4 h-4 mr-1" />
+        <ArrowLeft className="w-4 h-4 mr-1" aria-hidden="true" />
         Back to List
       </button>
 

@@ -27,7 +27,7 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({ data, on
             <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
                     <h4 className="text-base font-semibold text-slate-800">1. Contact Information</h4>
-                    {onEditStep && <Button variant="outline" className="text-xs h-8" onClick={() => onEditStep(1)}>Edit</Button>}
+                    {onEditStep && <Button variant="outline" className="text-xs h-8" onClick={() => onEditStep(1)} aria-label="Edit Contact Information">Edit</Button>}
                 </div>
                 <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                     <div>
@@ -53,7 +53,7 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({ data, on
             <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
                     <h4 className="text-base font-semibold text-slate-800">2. Scope of Work</h4>
-                    {onEditStep && <Button variant="outline" className="text-xs h-8" onClick={() => onEditStep(2)}>Edit</Button>}
+                    {onEditStep && <Button variant="outline" className="text-xs h-8" onClick={() => onEditStep(2)} aria-label="Edit Scope of Work">Edit</Button>}
                 </div>
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                    <div><dt className="text-slate-500">Performs Abatement?</dt><dd className="font-medium text-slate-900">{data.scopePerformsAbatement ? 'Yes' : 'No'}</dd></div>
@@ -68,7 +68,7 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({ data, on
              <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
                     <h4 className="text-base font-semibold text-slate-800">3. Firm Information</h4>
-                    {onEditStep && <Button variant="outline" className="text-xs h-8" onClick={() => onEditStep(3)}>Edit</Button>}
+                    {onEditStep && <Button variant="outline" className="text-xs h-8" onClick={() => onEditStep(3)} aria-label="Edit Firm Information">Edit</Button>}
                 </div>
                 <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                     <div><dt className="text-slate-500">Legal Name</dt><dd className="font-medium text-slate-900">{data.firmLegalName}</dd></div>
@@ -87,7 +87,7 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({ data, on
              <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
                     <h4 className="text-base font-semibold text-slate-800">4. Licensing History</h4>
-                    {onEditStep && <Button variant="outline" className="text-xs h-8" onClick={() => onEditStep(4)}>Edit</Button>}
+                    {onEditStep && <Button variant="outline" className="text-xs h-8" onClick={() => onEditStep(4)} aria-label="Edit Licensing History">Edit</Button>}
                 </div>
                 <div className="space-y-2 text-sm">
                    <div className="flex justify-between"><span className="text-slate-500">Refused License (7 Years)?</span><span className="font-medium text-slate-900">{data.historyRefused7Years ? 'Yes' : 'No'}</span></div>
@@ -101,7 +101,7 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({ data, on
              <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
                     <h4 className="text-base font-semibold text-slate-800">5. Associates</h4>
-                    {onEditStep && <Button variant="outline" className="text-xs h-8" onClick={() => onEditStep(5)}>Edit</Button>}
+                    {onEditStep && <Button variant="outline" className="text-xs h-8" onClick={() => onEditStep(5)} aria-label="Edit Associates">Edit</Button>}
                 </div>
                 {data.associates.length > 0 ? (
                     <ul className="text-sm space-y-2">

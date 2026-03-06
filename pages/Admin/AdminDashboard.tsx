@@ -69,12 +69,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ applications, factSheet
           <p className="text-slate-600 mt-1">Review and manage asbestos license applications.</p>
         </div>
         <div className="flex gap-2">
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleFileChange} 
-              className="hidden" 
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
               accept=".json"
+              aria-label="Import database backup JSON file"
             />
             <Button variant="secondary" onClick={handleExport} title="Download Backup">
                 <Download className="w-4 h-4 mr-2" />
@@ -91,10 +92,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ applications, factSheet
 
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="relative flex-grow">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" />
-          <input 
-            type="text" 
-            placeholder="Search applications..." 
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-5 w-5" aria-hidden="true" />
+          <label htmlFor="admin-search" className="sr-only">Search applications</label>
+          <input
+            id="admin-search"
+            type="text"
+            placeholder="Search applications..."
             className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-brand-500 focus:outline-none"
           />
         </div>
@@ -105,15 +108,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ applications, factSheet
       </div>
 
       <div className="bg-white rounded-lg shadow border border-slate-200 overflow-hidden">
-        <table className="min-w-full divide-y divide-slate-200">
+        <table className="min-w-full divide-y divide-slate-200" aria-label="License applications">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Company / Applicant</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">License Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date Submitted</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Risk Factors</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Company / Applicant</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">License Type</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Date Submitted</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Risk Factors</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
@@ -148,9 +151,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ applications, factSheet
                   }>{app.status}</Badge>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button 
+                  <button
                     onClick={() => onReviewClick(app.id)}
                     className="text-brand-600 hover:text-brand-900"
+                    aria-label={`Review application for ${app.companyName}`}
                   >
                     Review
                   </button>

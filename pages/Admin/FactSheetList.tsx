@@ -86,15 +86,15 @@ const FactSheetList: React.FC<FactSheetListProps> = ({ factSheets, onNewClick, o
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200">
+            <table className="min-w-full divide-y divide-slate-200" aria-label="Employer fact sheets">
                 <thead className="bg-slate-50">
                     <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Employer ID</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Legal Name / Trade Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Classification Unit</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Balance</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Employer ID</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Legal Name / Trade Name</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Classification Unit</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Balance</th>
+                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
@@ -124,29 +124,32 @@ const FactSheetList: React.FC<FactSheetListProps> = ({ factSheets, onNewClick, o
                                 )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <Button 
-                                variant="outline" 
+                                <Button
+                                variant="outline"
                                 className="text-xs px-2 py-1 h-auto mr-2"
                                 onClick={() => onView ? onView(sheet) : alert(`Viewing details for ${sheet.employerLegalName}`)}
+                                aria-label={`View fact sheet for ${sheet.employerLegalName}`}
                                 >
                                 View
                                 </Button>
-                                <Button 
-                                variant="outline" 
+                                <Button
+                                variant="outline"
                                 className="text-xs px-2 py-1 h-auto mr-2"
                                 onClick={() => onEdit ? onEdit(sheet) : alert(`Editing details for ${sheet.employerLegalName}`)}
+                                aria-label={`Edit fact sheet for ${sheet.employerLegalName}`}
                                 >
                                 Edit
                                 </Button>
                                 {onDelete && (
-                                    <Button 
-                                        variant="danger" 
+                                    <Button
+                                        variant="danger"
                                         className="text-xs px-2 py-1 h-auto"
                                         onClick={() => {
                                           if (window.confirm(`Delete Fact Sheet for ${sheet.employerLegalName}?`)) {
                                             handleDelete(sheet.id);
                                           }
                                         }}
+                                        aria-label={`Delete fact sheet for ${sheet.employerLegalName}`}
                                     >
                                         Delete
                                     </Button>

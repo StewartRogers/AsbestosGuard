@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { Loader2 } from 'lucide-react';
 
 /**
@@ -12,15 +12,15 @@ import { Loader2 } from 'lucide-react';
  * <Button onClick={save} isLoading={isSaving}>Save</Button>
  * <Button variant="danger" onClick={remove}>Delete</Button>
  */
-export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'outline', isLoading?: boolean }> = ({ 
-  className = '', 
-  variant = 'primary', 
+export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'outline', isLoading?: boolean }> = ({
+  className = '',
+  variant = 'primary',
   isLoading = false,
-  children, 
-  ...props 
+  children,
+  ...props
 }) => {
   const baseStyles = "inline-flex items-center justify-center px-4 py-2 rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
-  
+
   const variants = {
     primary: "bg-brand-600 text-white hover:bg-brand-700 focus:ring-brand-500",
     secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200 focus:ring-slate-500",
@@ -29,12 +29,13 @@ export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { 
   };
 
   return (
-    <button 
-      className={`${baseStyles} ${variants[variant]} ${className}`} 
+    <button
+      className={`${baseStyles} ${variants[variant]} ${className}`}
       disabled={isLoading || props.disabled}
+      aria-busy={isLoading || undefined}
       {...props}
     >
-      {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+      {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" aria-hidden="true" />}
       {children}
     </button>
   );
@@ -47,16 +48,24 @@ export const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { 
  * @param error - If provided, renders a red error message below the input
  *   and applies a red border to draw attention.
  */
-export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label: string, error?: string }> = ({ label, error, className = '', ...props }) => (
-  <div className="mb-4">
-    <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-    <input 
-      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 ${error ? 'border-red-300' : 'border-slate-300'} ${className}`}
-      {...props}
-    />
-    {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
-  </div>
-);
+export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { label: string, error?: string }> = ({ label, error, className = '', id: providedId, ...props }) => {
+  const generatedId = useId();
+  const inputId = providedId || generatedId;
+  const errorId = `${inputId}-error`;
+  return (
+    <div className="mb-4">
+      <label htmlFor={inputId} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+      <input
+        id={inputId}
+        className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 ${error ? 'border-red-300' : 'border-slate-300'} ${className}`}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        {...props}
+      />
+      {error && <p id={errorId} className="mt-1 text-sm text-red-600" role="alert">{error}</p>}
+    </div>
+  );
+};
 
 /**
  * Labelled dropdown select built from a typed options array.
@@ -64,19 +73,24 @@ export const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement> & { lab
  * @param label - Visible label rendered above the select.
  * @param options - Array of `{ value, label }` pairs to render as `<option>` elements.
  */
-export const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label: string, options: {value: string, label: string}[] }> = ({ label, options, className = '', ...props }) => (
-  <div className="mb-4">
-    <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-    <select 
-      className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 ${className}`}
-      {...props}
-    >
-      {options.map(opt => (
-        <option key={opt.value} value={opt.value}>{opt.label}</option>
-      ))}
-    </select>
-  </div>
-);
+export const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement> & { label: string, options: {value: string, label: string}[] }> = ({ label, options, className = '', id: providedId, ...props }) => {
+  const generatedId = useId();
+  const selectId = providedId || generatedId;
+  return (
+    <div className="mb-4">
+      <label htmlFor={selectId} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+      <select
+        id={selectId}
+        className={`w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 ${className}`}
+        {...props}
+      >
+        {options.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+};
 
 /**
  * Bordered card container with an optional header row.

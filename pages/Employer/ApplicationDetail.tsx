@@ -11,12 +11,13 @@ interface ApplicationDetailProps {
 
 const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ application, onBack }) => {
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-      <button 
+    <main className="max-w-4xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+      <button
         onClick={onBack}
         className="flex items-center text-slate-500 hover:text-slate-900 mb-6 transition-colors"
+        aria-label="Back to Dashboard"
       >
-        <ArrowLeft className="w-4 h-4 mr-1" />
+        <ArrowLeft className="w-4 h-4 mr-1" aria-hidden="true" />
         Back to Dashboard
       </button>
 
@@ -35,12 +36,12 @@ const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ application, onBa
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
            <div className="flex items-center">
-             <User className="w-4 h-4 text-slate-400 mr-2" />
+             <User className="w-4 h-4 text-slate-400 mr-2" aria-hidden="true" />
              <span className="text-slate-600 mr-2">Applicant:</span>
              <span className="font-medium text-slate-900">{application.applicantName}</span>
            </div>
            <div className="flex items-center">
-             <Calendar className="w-4 h-4 text-slate-400 mr-2" />
+             <Calendar className="w-4 h-4 text-slate-400 mr-2" aria-hidden="true" />
              <span className="text-slate-600 mr-2">Submitted:</span>
              <span className="font-medium text-slate-900">{application.submissionDate}</span>
            </div>
@@ -54,7 +55,7 @@ const ApplicationDetail: React.FC<ApplicationDetailProps> = ({ application, onBa
            <p>Detailed application data is not available for this legacy record.</p>
         </div>
       )}
-    </div>
+    </main>
   );
 };
 

@@ -17,15 +17,17 @@ const FactSheetView: React.FC<FactSheetViewProps> = ({ factSheet, onBack }) => {
 
       <div className="bg-white rounded-lg shadow border border-slate-200 p-6">
         <h2 className="text-xl font-bold mb-4">{factSheet.employerLegalName}</h2>
-        <p><strong>Employer ID:</strong> {factSheet.employerId}</p>
-        <p><strong>Trade Name:</strong> {factSheet.employerTradeName}</p>
-        <p><strong>Classification Unit:</strong> {factSheet.classificationUnit}</p>
-        <p><strong>Status:</strong> {factSheet.activeStatus}</p>
-        <p><strong>Current Account Balance:</strong> ${factSheet.currentAccountBalance.toFixed(2)}</p>
-        <p><strong>Overdue Balance:</strong> ${factSheet.overdueBalance.toFixed(2)}</p>
-        <p><strong>Years of Experience:</strong> {factSheet.yearsOfExperience}</p>
-        <p><strong>Insurance Expiry:</strong> {factSheet.insuranceExpiry}</p>
-        <p><strong>Violations Record:</strong> {factSheet.violationsRecord}</p>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div><dt className="font-medium text-slate-500">Employer ID</dt><dd className="text-slate-900">{factSheet.employerId}</dd></div>
+          <div><dt className="font-medium text-slate-500">Trade Name</dt><dd className="text-slate-900">{factSheet.employerTradeName}</dd></div>
+          <div><dt className="font-medium text-slate-500">Classification Unit</dt><dd className="text-slate-900">{factSheet.classificationUnit}</dd></div>
+          <div><dt className="font-medium text-slate-500">Status</dt><dd className="text-slate-900">{factSheet.activeStatus}</dd></div>
+          <div><dt className="font-medium text-slate-500">Current Account Balance</dt><dd className="text-slate-900">${factSheet.currentAccountBalance.toFixed(2)}</dd></div>
+          <div><dt className="font-medium text-slate-500">Overdue Balance</dt><dd className="text-slate-900">${factSheet.overdueBalance.toFixed(2)}</dd></div>
+          <div><dt className="font-medium text-slate-500">Years of Experience</dt><dd className="text-slate-900">{factSheet.yearsOfExperience}</dd></div>
+          <div><dt className="font-medium text-slate-500">Insurance Expiry</dt><dd className="text-slate-900">{factSheet.insuranceExpiry}</dd></div>
+          <div><dt className="font-medium text-slate-500">Violations Record</dt><dd className="text-slate-900">{factSheet.violationsRecord}</dd></div>
+        </dl>
       </div>
     </div>
   );
