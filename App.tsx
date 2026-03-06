@@ -26,7 +26,10 @@ export default function App() {
     window.scrollTo(0, 0);
   }, []);
 
-  const auth = useAuth(handleNavigate);
+  const currentViewRef = React.useRef<ViewState>(currentView);
+  currentViewRef.current = currentView;
+
+  const auth = useAuth(handleNavigate, currentViewRef);
 
   const data = useAppData(
     auth.isEmployerAuthenticated || auth.isAdminAuthenticated,

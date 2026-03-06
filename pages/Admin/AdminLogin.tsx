@@ -41,38 +41,40 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
             <ShieldCheck className="h-16 w-16 text-brand-500" />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">Admin Portal</h1>
-          <p className="text-slate-400">AsbestosGuard Licensing System</p>
+          <p className="text-slate-300">AsbestosGuard Licensing System</p>
         </div>
 
         <Card className="p-8 bg-slate-800 border-slate-700">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                <User className="inline h-4 w-4 mr-2" />
+              <label htmlFor="admin-username" className="block text-sm font-medium text-slate-200 mb-2">
+                <User className="inline h-4 w-4 mr-2" aria-hidden="true" />
                 Username
               </label>
               <input
+                id="admin-username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={isLoading}
-                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50"
+                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50"
                 placeholder="Enter your username"
                 autoComplete="username"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                <Lock className="inline h-4 w-4 mr-2" />
+              <label htmlFor="admin-password" className="block text-sm font-medium text-slate-200 mb-2">
+                <Lock className="inline h-4 w-4 mr-2" aria-hidden="true" />
                 Password
               </label>
               <input
+                id="admin-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
-                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50"
+                className="w-full px-4 py-2 rounded-lg bg-slate-900 border border-slate-600 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent disabled:opacity-50"
                 placeholder="Enter your password"
                 autoComplete="current-password"
               />
@@ -104,7 +106,7 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin, onCancel }) => {
           </form>
 
           <div className="mt-6 pt-6 border-t border-slate-700">
-            <p className="text-xs text-slate-500 text-center">
+            <p className="text-xs text-slate-400 text-center">
               Secure server-side authentication enabled
             </p>
           </div>

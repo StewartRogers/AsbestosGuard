@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, RefObject } from 'react';
 import { ViewState } from '../types';
+
+const LOGIN_VIEWS: ViewState[] = ['EMPLOYER_LOGIN', 'ADMIN_LOGIN', 'LANDING'];
 import { loginAdmin, loginEmployer, logout, getCurrentUser } from '../services/apiService';
 
 /**
@@ -35,7 +37,7 @@ interface UseAuthReturn {
  * @param onNavigate - Callback used to change the active view.
  * @returns Auth state and handler functions.
  */
-export function useAuth(onNavigate: (view: ViewState) => void): UseAuthReturn {
+export function useAuth(onNavigate: (view: ViewState) => void, currentViewRef: RefObject<ViewState>): UseAuthReturn {
   const [isEmployerAuthenticated, setIsEmployerAuthenticated] = useState(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [employerEmail, setEmployerEmail] = useState('');
@@ -52,13 +54,14 @@ export function useAuth(onNavigate: (view: ViewState) => void): UseAuthReturn {
         if (cancelled || sessionRestored.current) return;
         sessionRestored.current = true;
         if (response.user) {
+          const onLoginPage = LOGIN_VIEWS.includes(currentViewRef.current!);
           if (response.user.role === 'admin') {
             setIsAdminAuthenticated(true);
-            onNavigate('ADMIN_DASHBOARD');
+            if (onLoginPage) onNavigate('ADMIN_DASHBOARD');
           } else if (response.user.role === 'employer') {
             setIsEmployerAuthenticated(true);
             setEmployerEmail(response.user.email || '');
-            onNavigate('EMPLOYER_DASHBOARD');
+            if (onLoginPage) onNavigate('EMPLOYER_DASHBOARD');
           }
         }
       } catch {
