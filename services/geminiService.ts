@@ -13,13 +13,14 @@
 import fetch from 'node-fetch';
 
 // Read at call time (not module load time) so dotenv has already run.
-// Common free-tier model options (AI Studio key):
-//   gemini-2.0-flash-lite  — lightest, 1500 RPD free
-//   gemini-2.0-flash       — balanced, 1500 RPD free
-//   gemini-1.5-flash       — older but widely supported
+// Common model options (AI Studio key):
+//   gemini-2.5-flash       — recommended, strong reasoning
+//   gemini-2.0-flash       — balanced, fast
+//   gemini-2.0-flash-lite  — lightest
+// Override via GEMINI_MODEL in .env.local
 // See: https://ai.google.dev/gemini-api/docs/models
 const getApiKey = () => process.env.GEMINI_API_KEY || '';
-const getModel = () => process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite';
+const getModel = () => process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const getApiBaseUrl = () => process.env.GEMINI_API_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
 
 /** The active Gemini model ID — exported so routes can surface it in status checks. */
