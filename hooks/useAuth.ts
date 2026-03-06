@@ -71,6 +71,8 @@ export function useAuth(onNavigate: (view: ViewState) => void): UseAuthReturn {
 
   const handleEmployerLogin = useCallback(async (email: string, password: string) => {
     const response = await loginEmployer(email, password);
+    // Mark session as restored so any in-flight checkAuth resolves without navigating
+    sessionRestored.current = true;
     setIsEmployerAuthenticated(true);
     setEmployerEmail(response.user.email);
     onNavigate('EMPLOYER_DASHBOARD');
@@ -90,6 +92,8 @@ export function useAuth(onNavigate: (view: ViewState) => void): UseAuthReturn {
 
   const handleAdminLogin = useCallback(async (username: string, password: string) => {
     await loginAdmin(username, password);
+    // Mark session as restored so any in-flight checkAuth resolves without navigating
+    sessionRestored.current = true;
     setIsAdminAuthenticated(true);
     onNavigate('ADMIN_DASHBOARD');
   }, [onNavigate]);
