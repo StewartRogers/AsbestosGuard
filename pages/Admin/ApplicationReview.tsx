@@ -20,6 +20,7 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
   const [showFactDebug, setShowFactDebug] = useState(false);
   const [showPolicyDebug, setShowPolicyDebug] = useState(false);
   const [showWebDebug, setShowWebDebug] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // Attempt to link application to a Fact Sheet by Account Number only
   const matchedFactSheet = factSheets.find(
@@ -135,12 +136,12 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
   const handleRunAI = async () => {
     try {
       setIsAnalyzing(true);
-      // Pass matched fact sheet to the analysis service
+      setAnalysisError(null);
       const result = await analyzeApplicationServer(application, matchedFactSheet);
-      // Normalize incoming result to a consistent shape
       setAnalysisResult(normalizeAnalysis(result));
     } catch (e: any) {
       console.error(e);
+      setAnalysisError(e?.message || 'Analysis failed. Check that GEMINI_API_KEY is configured in .env.local.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -725,9 +726,13 @@ const ApplicationReview: React.FC<ApplicationReviewProps> = ({ application, fact
                     </div>
                   )}
                 </>
+              ) : analysisError ? (
+                <div className="text-center py-6">
+                  <p className="text-red-400 text-sm">{analysisError}</p>
+                </div>
               ) : (
                 <div className="text-center py-6 text-slate-400 text-sm">
-                  Click 'Run Analysis' to have an Azure AI Foundry agent review this application for risk factors and search the web for company details.
+                  Click 'Run Analysis' to have an AI agent review this application for risk factors.
                 </div>
               )}
             </div>

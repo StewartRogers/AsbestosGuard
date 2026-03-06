@@ -12,18 +12,18 @@
 
 import fetch from 'node-fetch';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-// Override via GEMINI_MODEL env var — must match the exact Google API model ID.
-// Common free-tier options (AI Studio key):
+// Read at call time (not module load time) so dotenv has already run.
+// Common free-tier model options (AI Studio key):
 //   gemini-2.0-flash-lite  — lightest, 1500 RPD free
 //   gemini-2.0-flash       — balanced, 1500 RPD free
 //   gemini-1.5-flash       — older but widely supported
 // See: https://ai.google.dev/gemini-api/docs/models
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite';
-const GEMINI_API_BASE_URL = process.env.GEMINI_API_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
+const getApiKey = () => process.env.GEMINI_API_KEY || '';
+const getModel = () => process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite';
+const getApiBaseUrl = () => process.env.GEMINI_API_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
 
 /** The active Gemini model ID — exported so routes can surface it in status checks. */
-export const activeModel = GEMINI_MODEL;
+export const activeModel = getModel();
 
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 const DEFAULT_MAX_RETRIES = 3;
@@ -107,6 +107,9 @@ export async function askGemini(
   options?: AskGeminiOptions
 ): Promise<GeminiResponse> {
   const startTime = Date.now();
+  const GEMINI_API_KEY = getApiKey();
+  const GEMINI_MODEL = getModel();
+  const GEMINI_API_BASE_URL = getApiBaseUrl();
 
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY is not configured. Set it in .env.local');
