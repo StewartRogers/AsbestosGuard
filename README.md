@@ -14,6 +14,7 @@ AsbestosGuard is a full-stack licensing and compliance portal for asbestos abate
 - [Security](#security)
 - [AI Analysis](#ai-analysis)
 - [Development](#development)
+- [License](#license)
 
 ---
 
@@ -56,7 +57,7 @@ AsbestosGuard is a full-stack licensing and compliance portal for asbestos abate
 │  │ (wizard)    │  │ (review)     │  │ ApplicationSummary │  │
 │  └──────┬──────┘  └──────┬───────┘  └────────────────────┘  │
 │         │                │                                    │
-│  ┌──────▼────────────────▼───��───────────────────────────┐   │
+│  ┌──────▼────────────────▼───────────────────────────────┐   │
 │  │            Custom Hooks (useAuth, useAppData)          │   │
 │  └──────────────────────────┬────────────────────────────┘   │
 │                             │ fetch / cookie auth             │
@@ -343,4 +344,4 @@ Results are saved to `./data/analysis/` and can be reloaded on subsequent review
 
 ## License
 
-Copyright © 2024 AsbestosGuard. All rights reserved.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
