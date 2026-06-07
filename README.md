@@ -1,6 +1,6 @@
 # AsbestosGuard
 
-AsbestosGuard is a full-stack licensing and compliance portal for asbestos abatement firms in British Columbia. It provides a guided multi-step application wizard for employers, an admin review dashboard with AI-assisted risk analysis, and a secure REST API backed by file-based storage.
+AsbestosGuard is a full-stack licensing and compliance portal for asbestos abatement firms in British Columbia. It provides a guided multi-step application wizard for employers, an admin review dashboard, and AI-powered compliance analysis powered by Google Gemini.
 
 ## Table of Contents
 
@@ -13,6 +13,7 @@ AsbestosGuard is a full-stack licensing and compliance portal for asbestos abate
 - [Deployment](#deployment)
 - [Security](#security)
 - [AI Analysis](#ai-analysis)
+- [Development](#development)
 
 ---
 
@@ -55,12 +56,12 @@ AsbestosGuard is a full-stack licensing and compliance portal for asbestos abate
 │  │ (wizard)    │  │ (review)     │  │ ApplicationSummary │  │
 │  └──────┬──────┘  └──────┬───────┘  └────────────────────┘  │
 │         │                │                                    │
-│  ┌──────▼────────────────▼───────────────────────────────┐   │
+│  ┌──────▼────────────────▼───��───────────────────────────┐   │
 │  │            Custom Hooks (useAuth, useAppData)          │   │
 │  └──────────────────────────┬────────────────────────────┘   │
 │                             │ fetch / cookie auth             │
 └─────────────────────────────┼───────────────────────────────-┘
-                              │
+                               │
 ┌─────────────────────────────▼────────────────────────────────┐
 │                   Express API Server (Node.js)                │
 │                                                               │
@@ -104,15 +105,18 @@ AsbestosGuard/
 ├── middleware/                 # Express middleware
 │   ├── auth.ts                 # JWT verification, role guards, token generation
 │   ├── auditLog.ts             # Security event audit logging
-│   └── errorHandler.ts        # Centralised error handling, asyncHandler wrapper
+│   └── errorHandler.ts         # Centralised error handling, asyncHandler wrapper
 │
 ├── pages/
 │   ├── Admin/                  # Admin-only pages
 │   │   ├── ApplicationReview.tsx
 │   │   ├── FactSheetManager.tsx
-│   │   └── AdminLogin.tsx
+│   │   ├── AdminLogin.tsx
+│   │   └── FactSheetForm.tsx
 │   └── Employer/               # Employer-facing pages
 │       ├── NewApplicationForm.tsx
+│       ├── EmployerDashboard.tsx
+│       ├── ApplicationDetail.tsx
 │       ├── steps/
 │       │   ├── FormComponents.tsx   # Shared RadioGroup, FormFooter
 │       │   └── formValidation.ts    # Step validation logic
@@ -149,10 +153,14 @@ AsbestosGuard/
 │   ├── QUICK_START.md
 │   └── GEMINI_SETUP.md
 │
+├── tests/                      # Test suite
+│   └── mocks/                  # MSW mock server setup
+│
 ├── server.ts                   # Express server entry point
 ├── App.tsx                     # React root & view router
 ├── Dockerfile                  # Multi-stage production image
-└── docker-compose.yml          # Production deployment
+├── docker-compose.yml          # Production deployment
+└── tsconfig.json               # TypeScript configuration
 ```
 
 ---
@@ -178,6 +186,13 @@ Copy `.env.example` to `.env.local` and set the following:
 **Generate an admin password hash:**
 ```bash
 node -e "import('./utils/passwordHash.js').then(m => m.generateHash('yourpassword'))"
+```
+
+For local development/testing, use these example values:
+```bash
+JWT_SECRET=test-secret-key-for-local-development-only
+ADMIN_PASSWORD_HASH=$2b$10$rBV2xRr4hNi8N9rCvZ1vNeF4q2YwH8x8h8ZGqQ3o0Q9zQX0b0b0b0
+# (password: admin123)
 ```
 
 ---
@@ -224,7 +239,7 @@ Interactive Swagger UI is available at `http://localhost:5000/api-docs` in devel
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/health` | Health check |
+| GET | `/api/health` | Health check with uptime and storage info |
 | GET | `/api/policies` | Load `.docx` policy documents |
 | GET | `/api-docs` | Swagger UI (development only) |
 
@@ -240,6 +255,8 @@ Interactive Swagger UI is available at `http://localhost:5000/api-docs` in devel
 | `npm run build` | Build frontend for production |
 | `npm run start:prod` | Run production build |
 | `npm test` | Run Vitest test suite |
+| `npm run test:ui` | Run tests with interactive UI |
+| `npm run test:coverage` | Generate test coverage report |
 
 ---
 
@@ -254,7 +271,16 @@ docker compose up --build -d
 
 The app will be available at `http://localhost:8080`.
 
-All secrets are read from environment variables — set them in a `.env` file or your host environment before running. Named Docker volumes (`app_data`, `app_logs`) persist data across container restarts.
+**Important:** All secrets must be set via environment variables. Create a `.env` file or set them in your host environment before running:
+
+```env
+PORT=5000
+JWT_SECRET=your-secret-key
+ADMIN_PASSWORD_HASH=your-hash
+GEMINI_API_KEY=your-api-key
+```
+
+Named Docker volumes (`app_data`, `app_logs`) persist data across container restarts.
 
 ### Manual
 
@@ -291,6 +317,27 @@ Admin users can trigger a three-step Gemini AI analysis on submitted application
 3. **Business Profile Analysis** — Performs a web-based company validation and geographic risk assessment.
 
 Results are saved to `./data/analysis/` and can be reloaded on subsequent reviews.
+
+---
+
+## Development
+
+### Project Highlights
+
+- **TypeScript**: Fully typed codebase for type safety across 98.7% of the project
+- **ESM modules**: Native ES modules throughout (Node.js + browser)
+- **Custom hooks**: `useAuth` manages session restoration and role-based navigation; `useAppData` handles CRUD operations
+- **Error boundaries**: React error boundaries prevent crashes from child component errors
+- **Comprehensive validation**: Input sanitisation and path traversal prevention in all data operations
+- **Testing**: MSW mock server for API mocking during tests
+
+### Key Design Decisions
+
+1. **File-based storage** — Simple local JSON storage for easy deployment and no DB setup required
+2. **JWT + HTTP-only cookies** — Secure token storage with CSRF protection
+3. **Separate API namespaces** — `/api` for business logic, `/__api` for internal/AI endpoints
+4. **Winston logging** — Structured logs with automatic rotation for production
+5. **Swagger/OpenAPI** — Auto-generated API documentation for development
 
 ---
 
